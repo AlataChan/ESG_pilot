@@ -1,0 +1,21 @@
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+langchain==0.2.0
+langchain-openai==0.1.8
+sqlalchemy==2.0.25
+asyncpg==0.29.0
+psycopg2-binary==2.9.9
+chromadb==0.4.24
+pydantic==2.7.4
+pydantic-settings==2.1.0
+python-dotenv==1.0.0
+langchain-community==0.2.0
+langchain-core==0.2.38
+langchain-text-splitters==0.2.0
+langchain-chroma==0.1.1
+python-docx==1.1.0
+python-multipart==0.0.6
+openpyxl==3.1.2
+pdfplumber==0.10.3
+# DeepSeek支持
+openai>=1.0.0

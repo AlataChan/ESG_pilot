@@ -1,0 +1,78 @@
+# Environment variables
+.env
+.env.*
+.env.bak*
+*.env
+
+# Database files
+db/
+chroma_db/
+chroma_db_data/
+*.db
+*.sqlite3
+
+# Logs
+logs/
+*.log
+
+# Uploads
+uploads/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+
+# IDE
+.idea/
+.vscode/
+.cursor/
+
+# macOS
+.DS_Store
+
+# Node.js (frontend)
+node_modules/
+dist/
+
+# Docker
+.dockerignore
+
+# Documentation (private)
+docs/
+
+# Test files and documentation
+test_*.py
+*test*.py
+*测试*.md
+ESG_测试说明.md
+run_esg_test.sh
+full_flow_test.py
+quick_test.py
+simple_esg_test.py
+debug_agent.py
+verify_api.py
+quick_start.md
+
+# Development and testing files
+frontend_demo_script.py
+create_knowledge_tables.py
+create_tables.py
+upgrade_embedding_model.py
+start_api.py
+ENTERPRISE_PROFILE_FIXES.md
+AGENT_CONCURRENCY_FIXES.md
+DEEPSEEK_SETUP.md
+LLM_MIGRATION_SUMMARY.md
+FINAL_SECURITY_REPORT.md
+
+# Backup files
+*.bak
+requirements.txt.bak

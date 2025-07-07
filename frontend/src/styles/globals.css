@@ -1,0 +1,284 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/**
+ * 全局样式定义 - 针对1440*900分辨率优化
+ * 包含基础样式重置、自定义组件样式和工具类
+ */
+
+/* 基础样式重置 */
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+  
+  html {
+    scroll-behavior: smooth;
+    /* 确保在1440*900分辨率下的最佳显示 */
+    font-size: 16px;
+  }
+  
+  body {
+    font-family: 'Inter', system-ui, sans-serif;
+    line-height: 1.6;
+    color: theme('colors.neutral.900');
+    background-color: theme('colors.neutral.50');
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    /* 针对900px高度优化 */
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    font-weight: 600;
+    line-height: 1.2;
+    color: theme('colors.neutral.900');
+  }
+  
+  /* 针对1440*900优化的标题尺寸 */
+  h1 {
+    font-size: 2.25rem; /* 36px - 适合1440宽度 */
+    margin-bottom: 1rem;
+  }
+  
+  h2 {
+    font-size: 1.875rem; /* 30px */
+    margin-bottom: 0.875rem;
+  }
+  
+  h3 {
+    font-size: 1.5rem; /* 24px */
+    margin-bottom: 0.75rem;
+  }
+  
+  p {
+    margin-bottom: 1rem;
+    color: theme('colors.neutral.600');
+    font-size: 1rem; /* 16px - 1440*900的标准字体大小 */
+  }
+  
+  a {
+    color: theme('colors.primary.green');
+    text-decoration: none;
+    transition: color 0.2s ease;
+  }
+  
+  a:hover {
+    color: theme('colors.primary.green-dark');
+  }
+}
+
+/* 自定义组件样式 */
+@layer components {
+  /* 按钮基础样式 - 1440*900优化 */
+  .btn {
+    @apply inline-flex items-center justify-center px-4 py-2 rounded-xl font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed;
+    /* 适合1440*900的按钮尺寸 */
+    min-height: 40px;
+  }
+  
+  .btn-large {
+    @apply px-6 py-3 text-lg;
+    min-height: 48px;
+  }
+  
+  .btn-primary {
+    @apply bg-primary-green text-white hover:bg-primary-green-dark focus:ring-primary-green shadow-medium hover:shadow-strong;
+  }
+  
+  .btn-secondary {
+    @apply bg-secondary-yellow text-neutral-900 hover:bg-secondary-yellow-dark focus:ring-secondary-yellow shadow-medium hover:shadow-strong;
+  }
+  
+  .btn-outline {
+    @apply border-2 border-primary-green text-primary-green hover:bg-primary-green hover:text-white focus:ring-primary-green;
+  }
+  
+  .btn-ghost {
+    @apply text-primary-green hover:bg-primary-green-light focus:ring-primary-green;
+  }
+  
+  /* 卡片样式 - 1440*900优化 */
+  .card {
+    @apply bg-white rounded-2xl shadow-card border border-neutral-200 overflow-hidden;
+  }
+  
+  .card-hover {
+    @apply hover:shadow-card-hover hover:-translate-y-1 transition-all duration-200;
+  }
+  
+  .card-elevated {
+    @apply shadow-medium;
+  }
+  
+  /* 输入框样式 - 1440*900优化 */
+  .input {
+    @apply w-full px-4 py-3 border border-neutral-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-primary-green focus:border-transparent transition-all duration-200;
+    min-height: 48px; /* 适合1440*900的输入框高度 */
+    font-size: 16px; /* 防止移动端缩放 */
+  }
+  
+  .input-error {
+    @apply border-red-500 focus:ring-red-500;
+  }
+  
+  /* 渐变文字 */
+  .gradient-text {
+    @apply bg-gradient-primary bg-clip-text text-transparent;
+  }
+  
+  /* 容器样式 - 针对1440*900优化 */
+  .container {
+    @apply max-w-8xl mx-auto px-4 sm:px-6 lg:px-8 2xl:px-12;
+    /* 在1440px屏幕上使用更大的内边距 */
+  }
+  
+  /* 页面布局 - 针对900px高度优化 */
+  .page-container {
+    @apply min-h-screen bg-gradient-hero;
+    /* 确保在900px高度下的良好显示 */
+    min-height: 100vh;
+  }
+  
+  .content-wrapper {
+    @apply py-6 lg:py-8 2xl:py-10;
+    /* 在1440*900下使用适中的垂直间距 */
+  }
+  
+  /* 针对1440*900的特殊布局类 */
+  .layout-1440 {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 0 20px;
+  }
+  
+  .height-900 {
+    height: 900px;
+    max-height: 100vh;
+  }
+  
+  /* 聊天界面优化 - 适配900px高度，使用flex布局 */
+  .chat-container {
+    height: calc(100vh - 80px); /* 减去header高度 */
+    max-height: 820px; /* 900px - header - padding */
+  }
+}
+
+/* 工具类 */
+@layer utilities {
+  /* 动画工具类 */
+  .animate-fade-in {
+    animation: fadeIn 0.5s ease-out;
+  }
+  
+  .animate-slide-up {
+    animation: slideUp 0.5s ease-out;
+  }
+  
+  /* 玻璃形态效果 */
+  .glass {
+    @apply bg-white/80 backdrop-blur-sm border border-white/20;
+  }
+  
+  /* 隐藏滚动条 */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+  
+  /* 文字省略 */
+  .text-ellipsis-2 {
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+  
+  .text-ellipsis-3 {
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+  }
+  
+  /* 响应式隐藏/显示 - 针对1440*900优化 */
+  .mobile-only {
+    @apply block sm:hidden;
+  }
+  
+  .desktop-only {
+    @apply hidden sm:block;
+  }
+  
+  .large-desktop-only {
+    @apply hidden 2xl:block;
+  }
+  
+  /* 1440*900专用工具类 */
+  .w-1440 {
+    width: 1440px;
+  }
+  
+  .h-900 {
+    height: 900px;
+  }
+  
+  .max-w-1440 {
+    max-width: 1440px;
+  }
+  
+  .max-h-900 {
+    max-height: 900px;
+  }
+  
+  /* 网格布局优化 */
+  .grid-1440 {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+  
+  @media (min-width: 768px) {
+    .grid-1440 {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+  
+  @media (min-width: 1440px) {
+    .grid-1440 {
+      grid-template-columns: repeat(3, 1fr);
+      gap: 2rem;
+    }
+  }
+}
+
+/* 1440*900专用媒体查询 */
+@media (min-width: 1440px) and (max-height: 900px) {
+  .optimized-1440-900 {
+    /* 针对1440*900分辨率的特殊优化 */
+    font-size: 14px;
+    line-height: 1.5;
+  }
+  
+  .container {
+    max-width: 1400px;
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+  
+  .content-wrapper {
+    padding-top: 1.5rem;
+    padding-bottom: 1.5rem;
+  }
+}
+
+/* 暗色模式支持 (预留) */
+@media (prefers-color-scheme: dark) {
+  /* 暗色模式样式将在后续版本中实现 */
+} 
