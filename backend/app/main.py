@@ -33,6 +33,12 @@ if settings.BACKEND_CORS_ORIGINS:
         allow_headers=["*"],
     )
 
+# ✅ Week 3 Day 3: Add performance monitoring middleware
+from app.middleware import PerformanceMiddleware, ErrorTrackingMiddleware
+app.add_middleware(ErrorTrackingMiddleware)
+app.add_middleware(PerformanceMiddleware, log_slow_requests=True, slow_threshold=1.0)
+logger.info("✅ Performance monitoring middleware enabled")
+
 # 包含API路由 - 统一通过api_router注册，避免重复
 # 所有v1 API路由都在 app/api/v1/__init__.py 中注册
 app.include_router(api_router, prefix=settings.API_V1_STR)
