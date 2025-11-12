@@ -350,7 +350,12 @@ class KnowledgeServiceV2:
         user_id: int
     ) -> bool:
         """
-        ✅ Delete document using ORM
+        ✅ Delete document using ORM + Vector Store Cleanup
+
+        Deletes:
+        1. Physical file from disk
+        2. Database record (ORM)
+        3. Vector embeddings from ChromaDB (Week 2 enhancement)
 
         Args:
             db: Database session
@@ -380,6 +385,17 @@ class KnowledgeServiceV2:
             if file_path.exists():
                 file_path.unlink()
                 logger.info(f"✅ Deleted file: {file_path}")
+
+            # ✅ Week 2: Delete vector embeddings from ChromaDB
+            if db_document.vector_indexed:
+                try:
+                    from app.vector_store.chroma_db import get_chroma_manager
+                    chroma_manager = get_chroma_manager()
+                    chroma_manager.delete_document(document_id)
+                    logger.info(f"✅ Deleted vector embeddings for: {document_id}")
+                except Exception as vec_error:
+                    logger.error(f"⚠️ Failed to delete vector embeddings: {vec_error}")
+                    # Continue with database deletion even if vector cleanup fails
 
             # Delete database record
             db.delete(db_document)

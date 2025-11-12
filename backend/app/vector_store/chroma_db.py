@@ -104,6 +104,52 @@ class ChromaDBManager:
         )
         return results
 
+    def delete_document(self, document_id: str) -> bool:
+        """
+        ✅ Week 2: Delete all vector embeddings for a document
+
+        Removes all chunks associated with a document from the vector store.
+        This ensures data integrity when documents are deleted from the database.
+
+        Args:
+            document_id: The document ID to delete embeddings for
+
+        Returns:
+            True if deletion was successful, False otherwise
+        """
+        try:
+            # Delete all embeddings where metadata.document_id matches
+            # ChromaDB uses where clause for filtering
+            self.collection.delete(
+                where={"document_id": document_id}
+            )
+            logger.info(f"✅ Deleted vector embeddings for document: {document_id}")
+            return True
+        except Exception as e:
+            logger.error(f"❌ Failed to delete vector embeddings for {document_id}: {e}")
+            return False
+
+    def delete_documents_batch(self, document_ids: List[str]) -> bool:
+        """
+        ✅ Week 2: Batch delete vector embeddings for multiple documents
+
+        Args:
+            document_ids: List of document IDs to delete
+
+        Returns:
+            True if deletion was successful, False otherwise
+        """
+        try:
+            # Delete all embeddings where document_id is in the list
+            self.collection.delete(
+                where={"document_id": {"$in": document_ids}}
+            )
+            logger.info(f"✅ Deleted vector embeddings for {len(document_ids)} documents")
+            return True
+        except Exception as e:
+            logger.error(f"❌ Failed to batch delete vector embeddings: {e}")
+            return False
+
 _chroma_manager_instance = None
 
 def get_chroma_manager():

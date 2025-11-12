@@ -22,6 +22,7 @@ from app.models.user import User
 from app.models.conversation import Conversation, ConversationMessage
 from app.models.conversation_state import ConversationState
 from app.models.knowledge_db import KnowledgeCategoryDB, KnowledgeDocumentDB  # ✅ Week 2
+from app.models.report_db import ReportDB  # ✅ Week 2
 
 __all__ = [
     "Base",
@@ -39,4 +40,5 @@ __all__ = [
     "ConversationState",
     "KnowledgeCategoryDB",  # ✅ Week 2
     "KnowledgeDocumentDB",  # ✅ Week 2
+    "ReportDB",  # ✅ Week 2
 ]
