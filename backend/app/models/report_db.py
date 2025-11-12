@@ -6,7 +6,7 @@ SQLAlchemy ORM model for ESG report storage.
 """
 
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, Text, DateTime, JSON, ForeignKey
+from sqlalchemy import Column, Integer, String, Text, DateTime, JSON, ForeignKey, Index
 from sqlalchemy.orm import relationship
 
 from app.db.base_class import Base
@@ -44,6 +44,21 @@ class ReportDB(Base):
 
     # Relationships
     user = relationship("User", backref="reports")
+
+    # ✅ Week 3: Composite indexes for query optimization
+    __table_args__ = (
+        # Query: list reports by user + status
+        Index('ix_report_user_status', 'user_id', 'status'),
+
+        # Query: list reports by conversation + status
+        Index('ix_report_conv_status', 'conversation_id', 'status'),
+
+        # Query: company reports with date range filtering
+        Index('ix_company_created', 'company_name', 'created_at'),
+
+        # Query: user reports with date sorting
+        Index('ix_user_created', 'user_id', 'created_at'),
+    )
 
     def __repr__(self):
         return f"<Report(id={self.id}, company={self.company_name}, status={self.status})>"

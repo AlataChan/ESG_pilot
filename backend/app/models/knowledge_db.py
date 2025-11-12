@@ -9,7 +9,7 @@ that work with both SQLite (dev) and PostgreSQL (production).
 """
 
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Text, Enum as SQLEnum
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Text, Enum as SQLEnum, Index
 from sqlalchemy.orm import relationship
 import enum
 
@@ -76,6 +76,24 @@ class KnowledgeDocumentDB(Base):
     # Relationships
     user = relationship("User", backref="knowledge_documents")
     category = relationship("KnowledgeCategoryDB", back_populates="documents")
+
+    # ✅ Week 3: Composite indexes for query optimization
+    __table_args__ = (
+        # Most common query: list documents by user + status
+        Index('ix_user_status', 'user_id', 'status'),
+
+        # Query: list documents by user + category + status
+        Index('ix_user_category_status', 'user_id', 'category_id', 'status'),
+
+        # Query: list documents by user + file_type + status
+        Index('ix_user_type_status', 'user_id', 'file_type', 'status'),
+
+        # Query: pagination with date sorting (user + created_at)
+        Index('ix_user_created', 'user_id', 'created_at'),
+
+        # Query: find vector indexed documents for user
+        Index('ix_user_vector', 'user_id', 'vector_indexed'),
+    )
 
     def __repr__(self):
         return f"<KnowledgeDocument(id={self.id}, filename={self.original_filename}, status={self.status})>"

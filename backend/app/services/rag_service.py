@@ -1,6 +1,8 @@
 """
 RAG服务 - 检索增强生成智能问答系统
 实现基于文档内容的精准问答，支持文档分块索引、语义匹配、答案生成和引用溯源
+
+✅ Week 3: Enhanced with caching for LLM calls and vector searches
 """
 
 import logging
@@ -14,6 +16,7 @@ from app.services.knowledge_service import get_knowledge_service
 from app.services.document_processor import get_document_processor
 from app.core.config import settings
 from app.core.llm_factory import llm_factory
+from app.core.cache import cached  # ✅ Week 3: Add caching support
 from langchain.schema import HumanMessage, SystemMessage
 
 logger = logging.getLogger(__name__)
@@ -103,19 +106,20 @@ class RAGService:
             self.knowledge_service = get_knowledge_service()
         if not self.document_processor:
             self.document_processor = get_document_processor()
-    
-    async def answer_question(self, question: str, user_id: str, 
+
+    @cached(ttl=3600, prefix="rag_answer")  # ✅ Week 3: Cache for 1 hour (saves 2-5s per request)
+    async def answer_question(self, question: str, user_id: str,
                             document_id: Optional[str] = None,
                             document_type: Optional[str] = None) -> RAGAnswer:
         """
-        基于文档内容回答问题
-        
+        基于文档内容回答问题 - ✅ Week 3: Cached to save expensive LLM calls
+
         Args:
             question: 用户问题
             user_id: 用户ID
             document_id: 特定文档ID（可选）
             document_type: 文档类型过滤（可选）
-            
+
         Returns:
             RAGAnswer: 包含答案、来源和置信度的结果
         """
@@ -159,18 +163,19 @@ class RAGService:
             logger.error(f"❌ RAG question answering failed: {e}")
             return self._generate_error_answer(question, str(e))
     
+    @cached(ttl=1800, prefix="rag_chunks")  # ✅ Week 3: Cache vector search for 30 min
     async def _retrieve_relevant_chunks(self, question: str, user_id: str,
                                       document_id: Optional[str] = None,
                                       document_type: Optional[str] = None) -> List[DocumentChunk]:
         """
-        检索相关文档片段
-        
+        检索相关文档片段 - ✅ Week 3: Cached to save expensive vector searches
+
         Args:
             question: 用户问题
             user_id: 用户ID
             document_id: 文档ID过滤
             document_type: 文档类型过滤
-            
+
         Returns:
             相关文档片段列表
         """
