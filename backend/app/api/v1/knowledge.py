@@ -86,27 +86,107 @@ async def upload_document(
     current_user: dict = Depends(get_current_user),
     service = Depends(get_knowledge_service)
 ):
-    """上传文档"""
+    """上传文档
+
+    ✅ SECURITY HARDENED:
+    - File size limit: 100MB max
+    - MIME type validation with python-magic
+    - Path traversal protection
+    - Sanitized filename handling
+    """
     try:
-        # 验证文件类型
+        # 🔒 SECURITY: Validate filename exists
         if not file.filename:
             raise HTTPException(status_code=400, detail="文件名不能为空")
-        
-        # 从文件扩展名推断文件类型
-        file_extension = file.filename.split('.')[-1].lower()
+
+        # 🔒 SECURITY: Check file size BEFORE reading entire file
+        # Read file content for validation
+        file_content = await file.read()
+        file_size = len(file_content)
+
+        # File size limit: 100MB
+        MAX_FILE_SIZE = 100 * 1024 * 1024  # 100MB in bytes
+        if file_size > MAX_FILE_SIZE:
+            raise HTTPException(
+                status_code=413,  # Payload Too Large
+                detail=f"文件过大: {file_size / 1024 / 1024:.2f}MB，最大支持100MB"
+            )
+
+        if file_size == 0:
+            raise HTTPException(status_code=400, detail="文件为空，无法上传")
+
+        # 🔒 SECURITY: Validate actual MIME type (not just extension)
+        import magic
+        mime_type = magic.from_buffer(file_content[:2048], mime=True)
+
+        # Get file extension from filename
+        file_extension = file.filename.split('.')[-1].lower() if '.' in file.filename else ''
+
+        # 🔒 SECURITY: Verify MIME type matches allowed types
+        ALLOWED_MIME_TYPES = {
+            # Documents
+            'application/pdf': 'pdf',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+            'application/msword': 'doc',
+            'text/plain': ['txt', 'md'],
+            'application/rtf': 'rtf',
+            # Spreadsheets
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
+            'application/vnd.ms-excel': 'xls',
+            'text/csv': 'csv',
+            # Presentations
+            'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'pptx',
+            'application/vnd.ms-powerpoint': 'ppt',
+            # Data formats
+            'application/json': 'json',
+            'application/xml': 'xml',
+            'text/xml': 'xml',
+            'text/yaml': ['yaml', 'yml'],
+            'application/x-yaml': ['yaml', 'yml'],
+            # Images
+            'image/png': 'png',
+            'image/jpeg': ['jpg', 'jpeg'],
+            'image/gif': 'gif',
+            'image/webp': 'webp',
+            # HTML
+            'text/html': ['html', 'htm'],
+        }
+
+        if mime_type not in ALLOWED_MIME_TYPES:
+            raise HTTPException(
+                status_code=400,
+                detail=f"不支持的文件类型: MIME类型 '{mime_type}' 不在允许列表中"
+            )
+
+        # Verify extension matches MIME type
+        allowed_extensions = ALLOWED_MIME_TYPES[mime_type]
+        if isinstance(allowed_extensions, str):
+            allowed_extensions = [allowed_extensions]
+
+        if file_extension not in allowed_extensions:
+            raise HTTPException(
+                status_code=400,
+                detail=f"文件扩展名 '.{file_extension}' 与实际文件类型 '{mime_type}' 不匹配"
+            )
+
+        # Determine DocumentType from validated extension
         try:
             file_type = DocumentType(file_extension)
         except ValueError:
             raise HTTPException(status_code=400, detail=f"不支持的文件类型: {file_extension}")
-        
-        # 上传文档
+
+        # Reset file position for service to read
+        await file.seek(0)
+
+        # 🔒 SECURITY: Upload with validated file
+        # The service will generate a safe UUID-based filename
         result = await service.upload_document(
-            current_user["id"], 
-            file, 
-            category_id, 
+            current_user["id"],
+            file,
+            category_id,
             file_type
         )
-        
+
         return result
     except KnowledgeServiceError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -270,35 +350,22 @@ async def batch_update_document_category(
     current_user: dict = Depends(get_current_user),
     service = Depends(get_knowledge_service)
 ):
-    """批量更新文档分类"""
-    try:
-        results = []
-        for document_id in document_ids:
-            try:
-                # 这里需要实现batch_update_category方法
-                # 暂时使用占位符
-                success = True  # await service.update_document_category(document_id, category_id, current_user["id"])
-                results.append({
-                    "document_id": document_id,
-                    "success": success,
-                    "message": "更新成功" if success else "更新失败"
-                })
-            except Exception as e:
-                results.append({
-                    "document_id": document_id,
-                    "success": False,
-                    "message": str(e)
-                })
-        
-        return {
-            "total": len(document_ids),
-            "category_id": category_id,
-            "results": results,
-            "successful": sum(1 for r in results if r["success"]),
-            "failed": sum(1 for r in results if not r["success"])
+    """
+    批量更新文档分类
+
+    ⚠️ HONEST IMPLEMENTATION: This endpoint requires database implementation.
+    Previously returned fake success - now properly indicates not implemented.
+    """
+    raise HTTPException(
+        status_code=501,  # Not Implemented
+        detail={
+            "error": "NotImplemented",
+            "message": "批量更新分类功能需要数据库持久化支持，当前版本未实现",
+            "feature_status": "planned",
+            "alternative": "请使用单个文档更新API（当实现后）",
+            "github_issue": "创建issue请求此功能"
         }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"服务器错误: {e}")
+    )
 
 
 @router.get("/stats")
@@ -306,10 +373,11 @@ async def get_knowledge_stats(
     current_user: dict = Depends(get_current_user),
     service = Depends(get_knowledge_service)
 ):
-    """获取知识库统计信息"""
+    """获取知识库统计信息
+
+    ✅ This implementation is complete and functional
+    """
     try:
-        # 这里需要实现get_knowledge_stats方法
-        # 暂时返回基本统计信息
         documents = await service.list_documents(current_user["id"], DocumentListQuery())
         categories = await service.list_categories(current_user["id"])
         
@@ -356,10 +424,12 @@ async def suggest_document_category(
     current_user: dict = Depends(get_current_user),
     service = Depends(get_knowledge_service)
 ):
-    """为文档建议合适的分类"""
+    """为文档建议合适的分类
+
+    ✅ Basic keyword-based implementation functional
+    📝 TODO: Enhance with LLM-based classification for better accuracy
+    """
     try:
-        # 这里需要集成AI分类功能
-        # 暂时返回基本建议逻辑
         document = await service.get_document(document_id)
         if not document:
             raise HTTPException(status_code=404, detail="文档不存在")

@@ -142,7 +142,80 @@ class KnowledgeService:
             raise KnowledgeServiceError(f"获取分类列表失败: {e}")
     
     # ========== 文档管理 ==========
-    
+
+    async def upload_document(
+        self,
+        user_id: str,
+        file,  # UploadFile from FastAPI
+        category_id: Optional[str],
+        file_type: DocumentType
+    ):
+        """上传文档文件
+
+        ✅ SECURITY HARDENED:
+        This method works with pre-validated files from the API endpoint.
+        Path traversal protection is enforced in _generate_file_path.
+
+        Args:
+            user_id: 用户ID
+            file: FastAPI UploadFile对象
+            category_id: 分类ID (可选)
+            file_type: 文档类型
+
+        Returns:
+            DocumentUploadResponse: 上传响应
+        """
+        from app.models.knowledge import DocumentUploadResponse
+
+        try:
+            # Validate filename
+            if not file.filename:
+                raise KnowledgeServiceError("文件名不能为空")
+
+            # 🔒 SECURITY: Generate safe file path (with path traversal protection)
+            safe_file_path = self._generate_file_path(user_id, file.filename)
+
+            # Read and save file content
+            file_content = await file.read()
+            file_size = len(file_content)
+
+            # Write file to disk
+            with open(safe_file_path, 'wb') as f:
+                f.write(file_content)
+
+            logger.info(f"文件已保存: {safe_file_path} ({file_size} bytes)")
+
+            # Create document record in database
+            from app.models.knowledge import KnowledgeDocumentCreate
+
+            document_data = KnowledgeDocumentCreate(
+                filename=safe_file_path.name,  # Use the safe UUID filename
+                original_filename=file.filename,  # Keep original for display
+                file_type=file_type,
+                file_size=file_size,
+                category_id=category_id
+            )
+
+            document = await self.create_document(user_id, document_data)
+
+            return DocumentUploadResponse(
+                id=document.id,
+                filename=document.original_filename,
+                file_size=document.file_size,
+                status=document.status,
+                message="文档上传成功，正在处理中"
+            )
+
+        except Exception as e:
+            logger.error(f"上传文档失败: {e}")
+            # Clean up file if it was created
+            if 'safe_file_path' in locals() and safe_file_path.exists():
+                try:
+                    safe_file_path.unlink()
+                except:
+                    pass
+            raise KnowledgeServiceError(f"上传文档失败: {e}")
+
     async def create_document(self, user_id: str, document_data: KnowledgeDocumentCreate) -> KnowledgeDocument:
         """创建文档记录"""
         try:
@@ -229,16 +302,58 @@ class KnowledgeService:
             raise KnowledgeServiceError(f"获取文档详情失败: {e}")
     
     def _generate_file_path(self, user_id: str, filename: str) -> Path:
-        """生成文件存储路径"""
+        """生成文件存储路径
+
+        🔒 SECURITY: Path traversal protection
+        - Sanitizes user_id to prevent directory traversal
+        - Uses UUID for unique filenames
+        - Validates final path is within upload directory
+        """
+        import re
+
+        # 🔒 SECURITY: Sanitize user_id - remove any path traversal characters
+        # Only allow alphanumeric, dash, underscore
+        safe_user_id = re.sub(r'[^a-zA-Z0-9_-]', '_', user_id)
+
+        # 🔒 SECURITY: Prevent empty user_id after sanitization
+        if not safe_user_id or safe_user_id == '_':
+            safe_user_id = 'default_user'
+
         # 创建用户专属目录
-        user_dir = self.upload_dir / user_id
+        user_dir = self.upload_dir / safe_user_id
         user_dir.mkdir(parents=True, exist_ok=True)
-        
-        # 生成唯一文件名避免冲突
-        file_ext = Path(filename).suffix
-        unique_filename = f"{uuid.uuid4()}{file_ext}"
-        
-        return user_dir / unique_filename
+
+        # 🔒 SECURITY: Sanitize file extension - only keep the last extension
+        # Extract extension safely
+        file_ext = Path(filename).suffix.lower()
+
+        # 🔒 SECURITY: Validate extension doesn't contain dangerous characters
+        safe_ext = re.sub(r'[^a-zA-Z0-9.]', '', file_ext)
+        if not safe_ext.startswith('.'):
+            safe_ext = f'.{safe_ext}' if safe_ext else ''
+
+        # 🔒 SECURITY: Generate completely random filename using UUID
+        unique_filename = f"{uuid.uuid4()}{safe_ext}"
+
+        # Construct final path
+        final_path = user_dir / unique_filename
+
+        # 🔒 SECURITY: Verify the final path is within the upload directory
+        # Resolve both paths to absolute paths and check containment
+        try:
+            final_path_resolved = final_path.resolve()
+            upload_dir_resolved = self.upload_dir.resolve()
+
+            # Check if final path starts with upload directory path
+            if not str(final_path_resolved).startswith(str(upload_dir_resolved)):
+                raise KnowledgeServiceError(
+                    "安全错误: 检测到路径遍历攻击尝试"
+                )
+        except Exception as e:
+            logger.error(f"Path validation error: {e}")
+            raise KnowledgeServiceError(f"文件路径验证失败: {e}")
+
+        return final_path
     
     async def delete_document(self, document_id: str, user_id: str) -> bool:
         """删除文档"""
@@ -275,6 +390,79 @@ class KnowledgeService:
         except Exception as e:
             logger.error(f"删除文档失败: {e}")
             raise KnowledgeServiceError(f"删除文档失败: {e}")
+
+    async def list_documents(
+        self,
+        user_id: str,
+        query_params: 'DocumentListQuery'
+    ) -> List[KnowledgeDocument]:
+        """获取文档列表（支持分页和过滤）
+
+        Args:
+            user_id: 用户ID
+            query_params: 查询参数
+
+        Returns:
+            文档列表
+        """
+        try:
+            # 构建SQL查询
+            sql_parts = ['''
+                SELECT d.*, c.name as category_name, c.description as category_description,
+                       c.color as category_color
+                FROM knowledge_documents d
+                LEFT JOIN knowledge_categories c ON d.category_id = c.id
+                WHERE d.user_id = ? AND d.status != ?
+            ''']
+            params = [user_id, DocumentStatus.DELETED.value]
+
+            # 添加分类过滤
+            if query_params.category_id:
+                sql_parts.append('AND d.category_id = ?')
+                params.append(query_params.category_id)
+
+            # 添加状态过滤
+            if query_params.status:
+                sql_parts.append('AND d.status = ?')
+                params.append(query_params.status.value)
+
+            # 添加文件类型过滤
+            if query_params.file_type:
+                sql_parts.append('AND d.file_type = ?')
+                params.append(query_params.file_type.value)
+
+            # 添加搜索条件
+            if query_params.search:
+                sql_parts.append('AND (d.filename LIKE ? OR d.original_filename LIKE ?)')
+                search_pattern = f'%{query_params.search}%'
+                params.extend([search_pattern, search_pattern])
+
+            # 添加排序
+            sql_parts.append('ORDER BY d.created_at DESC')
+
+            # 添加分页
+            limit = query_params.size
+            offset = (query_params.page - 1) * query_params.size
+            sql_parts.append('LIMIT ? OFFSET ?')
+            params.extend([limit, offset])
+
+            # 执行查询
+            sql = ' '.join(sql_parts)
+
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute(sql, params)
+                rows = cursor.fetchall()
+
+                documents = []
+                for row in rows:
+                    documents.append(self._row_to_document(row))
+
+                return documents
+
+        except Exception as e:
+            logger.error(f"获取文档列表失败: {e}")
+            raise KnowledgeServiceError(f"获取文档列表失败: {e}")
 
     # ========== 文档处理方法 ==========
     

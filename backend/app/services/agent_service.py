@@ -1,6 +1,8 @@
 """
 Agent服务层 - 使用真正的AI Agent架构
-提供Agent操作的高级接口和业务逻辑，完全移除硬编码逻辑
+提供Agent操作的高级接口和业务逻辑
+
+✅ FIXED: Removed all import fallbacks - fail fast if dependencies missing
 """
 import logging
 import uuid
@@ -17,38 +19,6 @@ from app.bus import MessageBus, A2AMessage
 from app.bus.schemas import MessageType
 from app.core.logging_config import get_agent_logger, time_it
 from app.core.cache import cached
-
-try:
-    from app.agents.base_agent import BaseAgent
-    from app.agents.company_profile_agent import CompanyProfileAgent
-    from app.agents.esg_assessment_agent import ESGAssessmentAgent
-    from app.agents.esg_report_agent import ESGReportAgent
-    from app.bus import MessageBus, A2AMessage
-    from app.bus.schemas import MessageType
-    from app.core.logging_config import get_agent_logger, time_it
-    from app.core.cache import cached
-except ImportError as e:
-    # 备用实现
-    logging.warning(f"Failed to import Agent modules: {e}")
-    BaseAgent = None
-    CompanyProfileAgent = None
-    ESGAssessmentAgent = None
-    ESGReportAgent = None
-    MessageBus = None
-    A2AMessage = None
-    
-    def get_agent_logger(agent_id: str):
-        return logging.getLogger(agent_id)
-    
-    def time_it(func_name: str):
-        def decorator(func):
-            return func
-        return decorator
-    
-    def cached(ttl=60, prefix="cache", key_builder=None):
-        def decorator(func):
-            return func
-        return decorator
 
 logger = logging.getLogger(__name__)
 
