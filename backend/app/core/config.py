@@ -105,6 +105,21 @@ class Settings(BaseSettings):
     CHROMA_DB_PATH: str = "chroma_db_data"  # Default for local/test persistent storage
     CHROMA_COLLECTION_NAME: str = "esg_collection"
 
+    # --- JWT Authentication Settings ---
+    # ✅ PRODUCTION-READY: Secure JWT configuration
+    SECRET_KEY: str = Field(
+        default="CHANGE_THIS_TO_A_RANDOM_SECRET_KEY_IN_PRODUCTION",
+        description="Secret key for JWT token signing - MUST be changed in production"
+    )
+    ALGORITHM: str = Field(
+        default="HS256",
+        description="JWT signing algorithm (HS256 or RS256)"
+    )
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(
+        default=30,
+        description="JWT token expiration time in minutes"
+    )
+
     def build_connection_string(self) -> str:
         return str(
             PostgresDsn.build(

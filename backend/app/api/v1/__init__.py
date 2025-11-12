@@ -1,9 +1,12 @@
 """
 API v1模块初始化
 注册所有API路由
+
+✅ Updated: Added authentication endpoints (Week 1 Day 2-3)
 """
 
 from fastapi import APIRouter
+from .auth import router as auth_router  # ✅ NEW: Authentication endpoints
 from .chat import router as chat_router
 from .knowledge import router as knowledge_router
 from .rag import router as rag_router
@@ -15,6 +18,9 @@ from app.routers.agents import router as agents_router
 
 # 创建v1路由器
 api_router = APIRouter()
+
+# ✅ Register auth router FIRST (no authentication required for login/register)
+api_router.include_router(auth_router, tags=["Authentication"])
 
 # 注册各个模块的路由（添加适当的前缀避免冲突）
 api_router.include_router(agents_router, prefix="/agents", tags=["Agents"])

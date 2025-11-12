@@ -1,113 +1,215 @@
-"""用户认证模块
+"""
+User authentication and authorization
 
-⚠️⚠️⚠️ CRITICAL SECURITY WARNING ⚠️⚠️⚠️
-===========================================
-THIS IS A DEVELOPMENT-ONLY STUB!
-DO NOT USE IN PRODUCTION!
+✅ PRODUCTION-READY JWT AUTHENTICATION:
+- Real JWT token verification with jose
+- Password-based authentication with bcrypt
+- Role-based access control
+- Session tracking with last_login
+- Secure error handling
 
-Current Implementation:
-- No authentication whatsoever
-- Returns same fake user for ALL requests
-- Anyone can access any data
-- All users have admin permissions
-- Token "verification" only checks length > 10 chars
-
-This MUST be replaced with real JWT authentication before deployment.
-See: Week 1 Day 2-3 implementation plan
-===========================================
+🔒 REPLACES: Fake authentication stub from Week 1 Day 1
 """
 
 import logging
-from typing import Optional, Dict, Any
+from datetime import datetime
+from typing import Dict, Any, Optional
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from sqlalchemy.orm import Session
 
-from app.core.config import settings
+from app.core.security import verify_token, verify_password, get_password_hash, create_access_token
+from app.db.session import get_db
+from app.models.user import User, UserInDB, TokenData
 
-security = HTTPBearer(auto_error=False)
 logger = logging.getLogger(__name__)
 
-async def get_current_user(
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)
+# HTTP Bearer token authentication scheme
+security = HTTPBearer()
+
+
+# ========== Token Verification ==========
+
+def get_current_user_from_token(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
-    """获取当前用户信息
-
-    🔴 DEVELOPMENT STUB - NOT SECURE 🔴
-
-    WARNING: This function bypasses ALL authentication!
-    - Does not validate JWT tokens
-    - Returns same fake user for everyone
-    - Grants admin access to all
-
-    ⚠️ Production deployment will FAIL if this is not replaced
-
-    TODO: Replace with real JWT verification (Week 1 Day 2-3)
     """
-    # Log warning every time this is called
-    logger.warning(
-        "🔴 SECURITY: Using fake authentication - not production safe!"
-    )
+    ✅ PRODUCTION-READY: Extract and verify JWT token from Authorization header
 
-    # In production, this should NEVER be allowed
-    if settings.ENV_STATE == "production":
+    Args:
+        credentials: HTTP Bearer token from Authorization header
+        db: Database session
+
+    Returns:
+        User information dictionary
+
+    Raises:
+        HTTPException: If token is invalid or user not found
+    """
+    token = credentials.credentials
+
+    # Verify and decode the JWT token
+    payload = verify_token(token)
+
+    if payload is None:
+        logger.warning("Invalid or expired JWT token")
         raise HTTPException(
-            status_code=501,
-            detail={
-                "error": "AuthenticationNotImplemented",
-                "message": "Real JWT authentication required for production",
-                "status": "Development stub active",
-                "action": "Implement JWT authentication before deploying"
-            }
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials",
+            headers={"WWW-Authenticate": "Bearer"},
         )
 
-    # 开发阶段返回模拟用户数据
+    # Extract user ID from token payload
+    user_id: Optional[int] = payload.get("user_id")
+    if user_id is None:
+        logger.warning("Token missing user_id")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # Fetch user from database
+    user = db.query(User).filter(User.id == user_id).first()
+
+    if user is None:
+        logger.warning(f"User not found for ID: {user_id}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User not found",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # Check if user is active
+    if not user.is_active:
+        logger.warning(f"Inactive user attempted access: {user.username}")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User account is inactive"
+        )
+
+    # Return user information as dictionary for compatibility
     return {
-        "id": "dev_user_001",
-        "username": "developer",
-        "email": "dev@example.com",
-        "role": "admin",
-        "permissions": ["read", "write", "admin"]
+        "id": str(user.id),  # Convert to string for compatibility with existing code
+        "user_id": user.id,  # Keep numeric ID for database operations
+        "username": user.username,
+        "email": user.email,
+        "full_name": user.full_name,
+        "role": user.role,
+        "is_superuser": user.is_superuser,
+        "permissions": _get_user_permissions(user)
     }
 
-def verify_token(token: str) -> Optional[Dict[str, Any]]:
-    """验证JWT token
 
-    🔴 FAKE IMPLEMENTATION 🔴
-    This does NOT verify tokens! It only checks length.
-    Any 11+ character string will pass.
-
-    TODO: Replace with jose.jwt.decode() (Week 1 Day 2-3)
+def _get_user_permissions(user: User) -> list:
     """
-    logger.warning("🔴 SECURITY: Fake token verification - any string > 10 chars passes!")
+    Get user permissions based on role
 
-    # ❌ This is NOT real verification!
-    if token and len(token) > 10:
-        return {
-            "id": "dev_user_001",
-            "username": "developer",
-            "email": "dev@example.com",
-            "role": "admin"
-        }
-    return None
+    Args:
+        user: User database object
 
-def create_access_token(user_data: Dict[str, Any]) -> str:
-    """创建访问token
-
-    🔴 FAKE IMPLEMENTATION 🔴
-    This does NOT create JWT tokens! Returns plain text.
-
-    TODO: Replace with jose.jwt.encode() (Week 1 Day 2-3)
+    Returns:
+        List of permission strings
     """
-    logger.warning("🔴 SECURITY: Fake token generation - not a real JWT!")
+    if user.is_superuser:
+        return ["read", "write", "admin", "delete", "manage_users"]
+    elif user.role == "admin":
+        return ["read", "write", "admin", "delete"]
+    else:
+        return ["read", "write"]
 
-    # ❌ This is NOT a real JWT!
-    return f"development-test-token-{user_data.get('id', 'unknown')}"
+
+# ========== Dependency Alias ==========
+
+async def get_current_user(
+    user: Dict[str, Any] = Depends(get_current_user_from_token)
+) -> Dict[str, Any]:
+    """
+    ✅ PRODUCTION-READY: Get current authenticated user
+
+    This is the main dependency used throughout the application.
+    It replaces the fake authentication stub.
+
+    Usage in endpoints:
+        @router.get("/protected")
+        async def protected_route(current_user: dict = Depends(get_current_user)):
+            return {"message": f"Hello {current_user['username']}"}
+
+    Args:
+        user: User dict from token verification
+
+    Returns:
+        User information dictionary
+    """
+    return user
+
+
+# ========== User Authentication ==========
+
+def authenticate_user(db: Session, username: str, password: str) -> Optional[User]:
+    """
+    ✅ PRODUCTION-READY: Authenticate user with username and password
+
+    Args:
+        db: Database session
+        username: Username
+        password: Plain text password
+
+    Returns:
+        User object if authentication successful, None otherwise
+    """
+    # Find user by username
+    user = db.query(User).filter(User.username == username).first()
+
+    if not user:
+        logger.info(f"Authentication failed: User not found - {username}")
+        return None
+
+    # Verify password
+    if not verify_password(password, user.hashed_password):
+        logger.info(f"Authentication failed: Invalid password - {username}")
+        return None
+
+    # Check if user is active
+    if not user.is_active:
+        logger.warning(f"Authentication failed: Inactive user - {username}")
+        return None
+
+    logger.info(f"Authentication successful: {username}")
+    return user
+
+
+def update_last_login(db: Session, user: User) -> None:
+    """
+    Update user's last login timestamp
+
+    Args:
+        db: Database session
+        user: User object to update
+    """
+    try:
+        user.last_login = datetime.utcnow()
+        db.commit()
+        logger.debug(f"Updated last login for user: {user.username}")
+    except Exception as e:
+        logger.error(f"Failed to update last login: {e}")
+        db.rollback()
+
+
+# ========== Permission Checking ==========
 
 def require_permission(permission: str):
-    """权限检查装饰器
+    """
+    ✅ PRODUCTION-READY: Permission checker decorator
 
-    ✅ This implementation is correct
-    (But relies on get_current_user which is fake)
+    Now works with real JWT authentication
+
+    Args:
+        permission: Required permission string
+
+    Returns:
+        FastAPI dependency function
     """
     async def permission_checker(
         current_user: Dict[str, Any] = Depends(get_current_user)
@@ -121,3 +223,38 @@ def require_permission(permission: str):
         return current_user
 
     return permission_checker
+
+
+# ========== Legacy Compatibility ==========
+
+def verify_token_legacy(token: str) -> Optional[Dict[str, Any]]:
+    """
+    ⚠️ LEGACY COMPATIBILITY: Direct token verification without database lookup
+
+    This function is kept for backward compatibility but should not be used
+    for authentication. Use get_current_user dependency instead.
+
+    Args:
+        token: JWT token string
+
+    Returns:
+        Token payload if valid, None otherwise
+    """
+    logger.warning("Using legacy verify_token - prefer get_current_user dependency")
+    return verify_token(token)
+
+
+def create_access_token_legacy(user_data: Dict[str, Any]) -> str:
+    """
+    ⚠️ LEGACY COMPATIBILITY: Create access token
+
+    Use app.core.security.create_access_token directly instead.
+
+    Args:
+        user_data: User data to encode
+
+    Returns:
+        JWT token string
+    """
+    logger.warning("Using legacy create_access_token - use security.create_access_token")
+    return create_access_token(user_data)
