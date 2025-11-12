@@ -1,18 +1,23 @@
 """
 知识库管理API接口
+
+✅ Week 2: Updated to use SQLAlchemy ORM service
+Now uses KnowledgeServiceV2 with proper database sessions.
 """
 
 from typing import List, Optional, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query
 from fastapi.responses import JSONResponse
+from sqlalchemy.orm import Session
 
 from app.models.knowledge import (
     KnowledgeCategory, KnowledgeDocument, DocumentUploadResponse,
     KnowledgeCategoryCreate, DocumentListQuery, DocumentListResponse,
-    DocumentStatus, DocumentType
+    DocumentStatus, DocumentType, KnowledgeStats
 )
-from app.services.knowledge_service import get_knowledge_service, KnowledgeServiceError
+from app.services.knowledge_service_v2 import get_knowledge_service_v2, KnowledgeServiceError
 from app.core.auth import get_current_user
+from app.db.session import get_db
 
 router = APIRouter()
 
@@ -20,11 +25,12 @@ router = APIRouter()
 @router.get("/categories", response_model=List[KnowledgeCategory])
 async def get_categories(
     current_user: dict = Depends(get_current_user),
-    service = Depends(get_knowledge_service)
+    db: Session = Depends(get_db),
+    service = Depends(get_knowledge_service_v2)
 ):
-    """获取知识库分类列表"""
+    """✅ 获取知识库分类列表 (ORM Version)"""
     try:
-        categories = await service.list_categories(current_user["id"])
+        categories = await service.list_categories(db, current_user["user_id"])
         return categories
     except KnowledgeServiceError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -36,11 +42,12 @@ async def get_categories(
 async def create_category(
     category_data: KnowledgeCategoryCreate,
     current_user: dict = Depends(get_current_user),
-    service = Depends(get_knowledge_service)
+    db: Session = Depends(get_db),
+    service = Depends(get_knowledge_service_v2)
 ):
-    """创建知识库分类"""
+    """✅ 创建知识库分类 (ORM Version)"""
     try:
-        category = await service.create_category(current_user["id"], category_data)
+        category = await service.create_category(db, current_user["user_id"], category_data)
         return category
     except KnowledgeServiceError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -57,9 +64,10 @@ async def get_documents(
     page: int = Query(1, ge=1, description="页码"),
     size: int = Query(20, ge=1, le=100, description="每页数量"),
     current_user: dict = Depends(get_current_user),
-    service = Depends(get_knowledge_service)
+    db: Session = Depends(get_db),
+    service = Depends(get_knowledge_service_v2)
 ):
-    """获取文档列表（支持搜索和过滤）"""
+    """✅ 获取文档列表 (ORM Version with pagination)"""
     try:
         # 构建查询参数
         query_params = DocumentListQuery(
@@ -70,8 +78,8 @@ async def get_documents(
             page=page,
             size=size
         )
-        
-        documents = await service.list_documents(current_user["id"], query_params)
+
+        documents = await service.list_documents(db, current_user["user_id"], query_params)
         return documents
     except KnowledgeServiceError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -84,9 +92,10 @@ async def upload_document(
     file: UploadFile = File(...),
     category_id: Optional[str] = Query(None, description="分类ID"),
     current_user: dict = Depends(get_current_user),
-    service = Depends(get_knowledge_service)
+    db: Session = Depends(get_db),
+    service = Depends(get_knowledge_service_v2)
 ):
-    """上传文档
+    """✅ 上传文档 (ORM Version with enhanced security)
 
     ✅ SECURITY HARDENED:
     - File size limit: 100MB max
@@ -181,7 +190,8 @@ async def upload_document(
         # 🔒 SECURITY: Upload with validated file
         # The service will generate a safe UUID-based filename
         result = await service.upload_document(
-            current_user["id"],
+            db,
+            current_user["user_id"],
             file,
             category_id,
             file_type
@@ -198,11 +208,12 @@ async def upload_document(
 async def delete_document(
     document_id: str,
     current_user: dict = Depends(get_current_user),
-    service = Depends(get_knowledge_service)
+    db: Session = Depends(get_db),
+    service = Depends(get_knowledge_service_v2)
 ):
-    """删除文档"""
+    """✅ 删除文档 (ORM Version)"""
     try:
-        success = await service.delete_document(document_id, current_user["id"])
+        success = await service.delete_document(db, document_id, current_user["user_id"])
         if success:
             return {"message": "文档删除成功"}
         else:
@@ -368,50 +379,21 @@ async def batch_update_document_category(
     )
 
 
-@router.get("/stats")
+@router.get("/stats", response_model=KnowledgeStats)
 async def get_knowledge_stats(
     current_user: dict = Depends(get_current_user),
-    service = Depends(get_knowledge_service)
+    db: Session = Depends(get_db),
+    service = Depends(get_knowledge_service_v2)
 ):
-    """获取知识库统计信息
+    """✅ 获取知识库统计信息 (ORM Version with SQL aggregations)
 
-    ✅ This implementation is complete and functional
+    Performance improved: Uses SQL GROUP BY instead of fetching all documents
     """
     try:
-        documents = await service.list_documents(current_user["id"], DocumentListQuery())
-        categories = await service.list_categories(current_user["id"])
-        
-        # 统计各种信息
-        total_documents = len(documents)
-        total_categories = len(categories)
-        total_size = sum(doc.file_size for doc in documents)
-        
-        # 按状态统计
-        status_stats = {}
-        for doc in documents:
-            status = doc.status.value
-            status_stats[status] = status_stats.get(status, 0) + 1
-        
-        # 按类型统计
-        type_stats = {}
-        for doc in documents:
-            file_type = doc.file_type.value
-            type_stats[file_type] = type_stats.get(file_type, 0) + 1
-        
-        # 按分类统计
-        category_stats = {}
-        for doc in documents:
-            category_name = doc.category.name if doc.category else "未分类"
-            category_stats[category_name] = category_stats.get(category_name, 0) + 1
-        
-        return {
-            "total_documents": total_documents,
-            "total_categories": total_categories,
-            "total_size": total_size,
-            "documents_by_status": status_stats,
-            "documents_by_type": type_stats,
-            "documents_by_category": category_stats
-        }
+        stats = await service.get_stats(db, current_user["user_id"])
+        return stats
+    except KnowledgeServiceError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"服务器错误: {e}")
 

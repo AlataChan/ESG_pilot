@@ -21,6 +21,7 @@ from .session import (
 from app.models.user import User
 from app.models.conversation import Conversation, ConversationMessage
 from app.models.conversation_state import ConversationState
+from app.models.knowledge_db import KnowledgeCategoryDB, KnowledgeDocumentDB  # ✅ Week 2
 
 __all__ = [
     "Base",
@@ -36,4 +37,6 @@ __all__ = [
     "Conversation",
     "ConversationMessage",
     "ConversationState",
+    "KnowledgeCategoryDB",  # ✅ Week 2
+    "KnowledgeDocumentDB",  # ✅ Week 2
 ]
