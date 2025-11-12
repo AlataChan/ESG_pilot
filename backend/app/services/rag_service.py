@@ -13,6 +13,8 @@ from app.vector_store.chroma_db import get_chroma_manager
 from app.services.knowledge_service import get_knowledge_service
 from app.services.document_processor import get_document_processor
 from app.core.config import settings
+from app.core.llm_factory import llm_factory
+from langchain.schema import HumanMessage, SystemMessage
 
 logger = logging.getLogger(__name__)
 
@@ -270,201 +272,105 @@ class RAGService:
             logger.error(f"❌ Context assembly failed: {e}")
             return f"问题: {question}\n相关文档内容: [上下文组装失败]"
     
-    async def _generate_answer(self, question: str, context: str, 
+    async def _generate_answer(self, question: str, context: str,
                              sources: List[DocumentChunk]) -> str:
         """
-        基于上下文生成答案
-        
+        ✅ FIXED: 使用真正的LLM生成答案（DeepSeek AI）
+
         Args:
             question: 用户问题
             context: 组装的上下文
             sources: 来源文档片段
-            
+
         Returns:
             生成的答案
         """
         try:
-            # 这里应该调用LLM API来生成答案
-            # 暂时使用基于规则的简单答案生成
-            
-            # 分析问题类型
-            question_type = self._analyze_question_type(question)
-            
-            # 提取关键信息
-            key_info = self._extract_key_information(sources, question)
-            
-            # 构建答案
-            if question_type == "definition":
-                answer = self._generate_definition_answer(question, key_info, sources)
-            elif question_type == "process":
-                answer = self._generate_process_answer(question, key_info, sources)
-            elif question_type == "comparison":
-                answer = self._generate_comparison_answer(question, key_info, sources)
-            elif question_type == "factual":
-                answer = self._generate_factual_answer(question, key_info, sources)
-            else:
-                answer = self._generate_general_answer(question, key_info, sources)
-            
+            # 创建LLM实例
+            logger.info("🤖 Generating answer using DeepSeek AI...")
+            llm = llm_factory.create_deepseek_llm(
+                temperature=0.3,  # 较低温度保证准确性
+                max_tokens=1500
+            )
+
+            # 构建结构化的文档上下文
+            documents_context = "\n\n".join([
+                f"【文档片段 {i+1}】\n来源: {chunk.metadata.get('filename', '未知')}\n"
+                f"相关度: {chunk.similarity_score:.1%}\n"
+                f"内容: {chunk.content}"
+                for i, chunk in enumerate(sources)
+            ])
+
+            # 构建系统提示词
+            system_prompt = """你是一位专业的ESG（环境、社会和治理）咨询专家，专门负责分析文档并回答用户关于ESG的问题。
+
+你的职责：
+1. 仔细阅读提供的文档内容
+2. 基于文档内容准确回答用户问题
+3. 如果文档中没有明确答案，坦诚说明并给出合理推断
+4. 回答要专业、清晰、有条理
+5. 涉及数据时要准确引用原文
+6. 适当使用格式化（如项目符号、编号列表）提高可读性
+
+回答要求：
+- 直接回答问题，不要重复问题
+- 基于事实，避免主观臆断
+- 如引用具体数据，说明来源
+- 保持专业和客观的语气"""
+
+            user_prompt = f"""请基于以下文档内容回答问题。
+
+# 用户问题
+{question}
+
+# 相关文档内容
+{documents_context}
+
+# 回答指南
+- 综合所有文档片段的信息
+- 给出准确、完整的答案
+- 如果信息不足，请说明
+- 保持逻辑清晰、结构分明"""
+
+            # 调用LLM生成答案
+            messages = [
+                SystemMessage(content=system_prompt),
+                HumanMessage(content=user_prompt)
+            ]
+
+            response = llm.invoke(messages)
+            answer = response.content.strip()
+
+            logger.info(f"✅ LLM answer generated ({len(answer)} chars)")
+
             # 添加来源引用
             answer_with_sources = self._add_source_citations(answer, sources)
-            
+
             return answer_with_sources
-            
+
         except Exception as e:
-            logger.error(f"❌ Answer generation failed: {e}")
-            return f"基于提供的文档内容，我无法准确回答您的问题：{question}。请尝试重新表述问题或检查相关文档是否包含所需信息。"
+            logger.error(f"❌ LLM answer generation failed: {e}")
+            # 降级到基础模板回答
+            return self._generate_fallback_answer(question, sources)
     
-    def _analyze_question_type(self, question: str) -> str:
-        """分析问题类型"""
-        question_lower = question.lower()
-        
-        if any(word in question_lower for word in ["什么是", "定义", "含义", "概念"]):
-            return "definition"
-        elif any(word in question_lower for word in ["如何", "怎样", "流程", "步骤", "过程"]):
-            return "process"
-        elif any(word in question_lower for word in ["区别", "差异", "比较", "对比"]):
-            return "comparison"
-        elif any(word in question_lower for word in ["多少", "何时", "哪里", "谁"]):
-            return "factual"
-        else:
-            return "general"
-    
-    def _extract_key_information(self, sources: List[DocumentChunk], question: str) -> Dict[str, Any]:
-        """从来源文档中提取关键信息"""
-        key_info = {
-            "main_concepts": [],
-            "numbers": [],
-            "dates": [],
-            "entities": [],
-            "processes": []
-        }
-        
-        for chunk in sources:
-            content = chunk.content
-            
-            # 提取数字信息
-            numbers = re.findall(r'\d+(?:\.\d+)?%?', content)
-            key_info["numbers"].extend(numbers)
-            
-            # 提取日期信息
-            dates = re.findall(r'\d{4}年|\d{1,2}月|\d{1,2}日', content)
-            key_info["dates"].extend(dates)
-            
-            # 简单的实体识别（可以后续集成NER模型）
-            # 这里使用简单的规则识别
-            if "公司" in content or "企业" in content:
-                key_info["entities"].append("企业实体")
-            if "政策" in content or "制度" in content:
-                key_info["entities"].append("政策制度")
-        
-        return key_info
-    
-    def _generate_definition_answer(self, question: str, key_info: Dict[str, Any], 
-                                  sources: List[DocumentChunk]) -> str:
-        """生成定义类问题的答案"""
+    def _generate_fallback_answer(self, question: str, sources: List[DocumentChunk]) -> str:
+        """
+        降级回答方法（当LLM调用失败时使用）
+        """
         if not sources:
-            return "抱歉，我在文档中没有找到相关的定义信息。"
-        
-        # 取最相关的片段作为定义来源
-        main_source = sources[0]
-        
+            return "抱歉，我在知识库中没有找到与您的问题相关的文档内容。"
+
         answer_parts = [
-            f"根据文档内容，{question.replace('什么是', '').replace('？', '').strip()}的定义如下：",
-            "",
-            main_source.content.strip(),
-            ""
+            f"根据知识库文档，关于您的问题「{question}」，我找到以下相关内容：\n"
         ]
-        
-        # 如果有多个来源，添加补充信息
-        if len(sources) > 1:
-            answer_parts.append("补充信息：")
-            for i, source in enumerate(sources[1:3], 2):  # 最多添加2个补充来源
-                answer_parts.append(f"• {source.content.strip()}")
-        
-        return "\n".join(answer_parts)
-    
-    def _generate_process_answer(self, question: str, key_info: Dict[str, Any], 
-                               sources: List[DocumentChunk]) -> str:
-        """生成流程类问题的答案"""
-        if not sources:
-            return "抱歉，我在文档中没有找到相关的流程信息。"
-        
-        answer_parts = [
-            f"根据文档内容，关于{question.replace('如何', '').replace('怎样', '').replace('？', '').strip()}的流程如下：",
-            ""
-        ]
-        
-        # 尝试识别步骤
-        for i, source in enumerate(sources[:3]):  # 最多使用3个来源
-            content = source.content.strip()
-            
-            # 如果内容包含明显的步骤标识
-            if any(step_word in content for step_word in ["第一", "第二", "首先", "然后", "最后", "步骤"]):
-                answer_parts.append(f"**步骤 {i+1}**: {content}")
-            else:
-                answer_parts.append(f"**要点 {i+1}**: {content}")
-            answer_parts.append("")
-        
-        return "\n".join(answer_parts)
-    
-    def _generate_comparison_answer(self, question: str, key_info: Dict[str, Any], 
-                                  sources: List[DocumentChunk]) -> str:
-        """生成比较类问题的答案"""
-        if not sources:
-            return "抱歉，我在文档中没有找到相关的比较信息。"
-        
-        answer_parts = [
-            f"根据文档内容，关于{question.replace('？', '').strip()}的比较分析如下：",
-            ""
-        ]
-        
-        for i, source in enumerate(sources[:2]):  # 最多使用2个来源进行比较
-            answer_parts.append(f"**方面 {i+1}**: {source.content.strip()}")
-            answer_parts.append("")
-        
-        return "\n".join(answer_parts)
-    
-    def _generate_factual_answer(self, question: str, key_info: Dict[str, Any], 
-                               sources: List[DocumentChunk]) -> str:
-        """生成事实类问题的答案"""
-        if not sources:
-            return "抱歉，我在文档中没有找到相关的事实信息。"
-        
-        # 优先使用包含数字、日期等具体信息的片段
-        factual_sources = []
-        for source in sources:
-            if any(num in source.content for num in key_info.get("numbers", [])) or \
-               any(date in source.content for date in key_info.get("dates", [])):
-                factual_sources.append(source)
-        
-        if not factual_sources:
-            factual_sources = sources[:2]
-        
-        answer_parts = [
-            f"根据文档内容，{question.replace('？', '').strip()}的相关信息如下：",
-            ""
-        ]
-        
-        for source in factual_sources:
-            answer_parts.append(f"• {source.content.strip()}")
-        
-        return "\n".join(answer_parts)
-    
-    def _generate_general_answer(self, question: str, key_info: Dict[str, Any], 
-                               sources: List[DocumentChunk]) -> str:
-        """生成一般问题的答案"""
-        if not sources:
-            return "抱歉，我在文档中没有找到相关信息来回答您的问题。"
-        
-        answer_parts = [
-            f"根据文档内容，关于您的问题「{question}」，我找到以下相关信息：",
-            ""
-        ]
-        
-        for i, source in enumerate(sources[:3]):  # 最多使用3个来源
-            answer_parts.append(f"**信息 {i+1}**: {source.content.strip()}")
-            answer_parts.append("")
-        
+
+        for i, source in enumerate(sources[:3], 1):
+            filename = source.metadata.get('filename', '未知文档')
+            answer_parts.append(f"**{i}. 来自《{filename}》**")
+            answer_parts.append(f"{source.content.strip()}\n")
+
+        answer_parts.append("\n⚠️ 注意：当前使用简化回答模式，可能不够精确。请稍后重试获取AI分析。")
+
         return "\n".join(answer_parts)
     
     def _add_source_citations(self, answer: str, sources: List[DocumentChunk]) -> str:

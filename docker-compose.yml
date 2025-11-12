@@ -13,7 +13,8 @@ services:
     ports:
       - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      # ✅ FIXED: Use hardcoded values instead of shell variables
+      test: ["CMD-SHELL", "pg_isready -U esg_user -d esg_db"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -35,6 +36,13 @@ services:
       dockerfile: Dockerfile
     env_file:
       - .env
+    environment:
+      # Override for Docker environment
+      - ENV_STATE=docker
+      - DB_HOST=db
+      - DB_PORT=5432
+      - CHROMA_DB_HOST=chroma
+      - CHROMA_DB_PORT=8000
     depends_on:
       db:
         condition: service_healthy
@@ -46,10 +54,12 @@ services:
       - ./backend:/app/backend # Mount local code for live reloading during development
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8000/health').raise_for_status()"]
+      # ✅ FIXED: Use requests library that's now in requirements.txt
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8000/health', timeout=5).raise_for_status()"]
       interval: 30s
       timeout: 10s
       retries: 5
+      start_period: 40s
 
   frontend:
     build:

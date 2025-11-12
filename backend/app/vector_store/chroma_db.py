@@ -40,18 +40,33 @@ class ChromaDBManager:
         # 2. Wrap it with our adapter
         self.embedding_function = LangchainEmbeddingFunctionAdapter(lc_embedding_model)
 
-        # 3. Initialize the ChromaDB client
+        # 3. Initialize the ChromaDB client with proper error handling
         if settings.ENV_STATE in ["local", "test"]:
             logging.info(f"Using local, persistent ChromaDB at: {settings.CHROMA_DB_PATH}")
             # Use a persistent client for local development/testing
             self.client = chromadb.PersistentClient(path=str(settings.CHROMA_DB_PATH))
         else:
-            logging.info(f"Connecting to remote ChromaDB at: {settings.CHROMA_DB_HOST}:{settings.CHROMA_DB_PORT}")
-            # Use a HTTP client for Docker/production environment
-            self.client = chromadb.HttpClient(
-                host=settings.CHROMA_DB_HOST,
-                port=settings.CHROMA_DB_PORT
-            )
+            # ✅ FIXED: Validate Docker/production configuration before connecting
+            chroma_host = settings.CHROMA_DB_HOST
+            chroma_port = settings.CHROMA_DB_PORT
+
+            if not chroma_host or not chroma_port:
+                logging.error(f"ChromaDB configuration missing! HOST: {chroma_host}, PORT: {chroma_port}")
+                logging.warning("Falling back to local persistent ChromaDB...")
+                # Fallback to local persistent client
+                self.client = chromadb.PersistentClient(path=str(settings.CHROMA_DB_PATH))
+            else:
+                logging.info(f"Connecting to remote ChromaDB at: {chroma_host}:{chroma_port}")
+                # Use a HTTP client for Docker/production environment
+                try:
+                    self.client = chromadb.HttpClient(
+                        host=chroma_host,
+                        port=chroma_port
+                    )
+                except Exception as e:
+                    logging.error(f"Failed to connect to remote ChromaDB: {e}")
+                    logging.warning("Falling back to local persistent ChromaDB...")
+                    self.client = chromadb.PersistentClient(path=str(settings.CHROMA_DB_PATH))
 
         # 4. Get or create the collection, now passing the compliant adapter
         self.collection = self.client.get_or_create_collection(

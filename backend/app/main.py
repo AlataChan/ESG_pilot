@@ -11,12 +11,9 @@ setup_logging()
 logger = logging.getLogger(__name__)
 
 # 现在可以安全地导入其他模块
-from app.routers import agents
-from app.routers import knowledge
-from app.api.routers import reports
 from app.api.v1 import api_router
 from app.bus.message_bus import get_message_bus
-from app.db.session import SessionLocal
+from app.db.session import create_tables, close_database
 
 # 创建FastAPI应用实例
 app = FastAPI(
@@ -36,41 +33,58 @@ if settings.BACKEND_CORS_ORIGINS:
         allow_headers=["*"],
     )
 
-# 包含API路由
-app.include_router(agents.router, prefix=f"{settings.API_V1_STR}/agents", tags=["Agents"])
-app.include_router(knowledge.router, prefix=f"{settings.API_V1_STR}", tags=["Knowledge Management"])
-app.include_router(reports.router, prefix=f"{settings.API_V1_STR}/reports", tags=["Reports"])
+# 包含API路由 - 统一通过api_router注册，避免重复
+# 所有v1 API路由都在 app/api/v1/__init__.py 中注册
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
 
 # 定义启动和关闭事件
 @app.on_event("startup")
 async def startup_event():
-    logger.info("Application startup...")
+    logger.info("🚀 Application startup...")
     try:
-        # 初始化数据库
-        db = SessionLocal()
-        
-        # 初始化消息总线
+        # 1. 初始化数据库表（如果不存在）
+        logger.info("📊 Initializing database tables...")
+        try:
+            create_tables()
+            logger.info("✅ Database tables ready")
+        except Exception as db_error:
+            logger.warning(f"⚠️  Database initialization warning: {db_error}")
+            # Continue even if database fails (for development without DB)
+
+        # 2. 初始化并启动消息总线
+        logger.info("📨 Initializing message bus...")
         message_bus = get_message_bus()
-        
-        # 将关键服务存入app.state以便在其他地方访问
+        await message_bus.start()  # ✅ CRITICAL FIX: Start the message bus!
         app.state.message_bus = message_bus
-        app.state.db = db
-        
-        logger.info("✅ Application startup complete.")
-        
+        logger.info("✅ Message bus started and ready")
+
+        logger.info("✅ Application startup complete!")
+
     except Exception as e:
         logger.exception(f"❌ Critical error during application startup: {e}")
         raise
 
 @app.on_event("shutdown")
 async def shutdown_event():
-    logger.info("Application shutdown...")
-    
-    if hasattr(app.state, 'db') and app.state.db:
-        app.state.db.close()
-        logger.info("✅ Database session closed.")
+    logger.info("🔌 Application shutdown...")
+
+    try:
+        # 1. 停止消息总线
+        if hasattr(app.state, 'message_bus') and app.state.message_bus:
+            logger.info("📨 Stopping message bus...")
+            await app.state.message_bus.stop()
+            logger.info("✅ Message bus stopped")
+
+        # 2. 关闭数据库连接
+        logger.info("📊 Closing database connections...")
+        close_database()
+        logger.info("✅ Database connections closed")
+
+    except Exception as e:
+        logger.error(f"⚠️  Error during shutdown: {e}")
+
+    logger.info("✅ Application shutdown complete")
 
 # 健康检查端点
 @app.get("/", tags=["Health Check"])

@@ -1,45 +1,15 @@
 """
 Agent 服务的 API 路由
 提供Agent操作的RESTful接口
+
+✅ FIXED: Removed defensive import fallbacks - dependencies must be installed
 """
 from typing import Dict, List, Any, Optional
-try:
-    from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
-    from pydantic import BaseModel, Field
-except ImportError:
-    # 备用实现
-    class APIRouter:
-        def __init__(self, prefix="", tags=None, responses=None):
-            self.prefix = prefix
-            self.tags = tags or []
-            self.responses = responses or {}
-    
-    class BaseModel:
-        pass
-    
-    def Field(default, description=""):
-        return default
-    
-    class HTTPException(Exception):
-        def __init__(self, status_code, detail):
-            self.status_code = status_code
-            self.detail = detail
-    
-    class BackgroundTasks:
-        def add_task(self, func, *args):
-            pass
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from pydantic import BaseModel, Field
 
-try:
-    from app.services.agent_service import AgentService, get_agent_service
-    from app.core.logging_config import log_performance
-except ImportError:
-    AgentService = None
-    
-    async def get_agent_service():
-        return None
-    
-    def log_performance(metric_name: str, value: float, context: Optional[Dict[str, Any]] = None):
-        pass
+from app.services.agent_service import AgentService, get_agent_service
+from app.core.logging_config import log_performance
 
 router = APIRouter(
     tags=["agents"],
