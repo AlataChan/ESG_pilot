@@ -42,17 +42,19 @@ def init_database():
         )
         logger.info(f"🗄️  Database engine created: SQLite")
     else:
-        # PostgreSQL configuration
+        # PostgreSQL configuration with production-ready connection pooling
         engine = create_engine(
             database_url,
             poolclass=QueuePool,
-            pool_size=5,
-            max_overflow=10,
+            pool_size=20,  # ✅ Final: Increased for production (was 5)
+            max_overflow=10,  # Additional connections during peak traffic
             pool_pre_ping=True,  # Verify connections before using
             pool_recycle=3600,  # Recycle connections after 1 hour
-            echo=False
+            pool_timeout=30,  # Wait max 30s for connection from pool
+            echo=False,  # Set to True for SQL debugging
+            echo_pool=False,  # Pool debugging
         )
-        logger.info(f"🗄️  Database engine created: PostgreSQL")
+        logger.info(f"🗄️  Database engine created: PostgreSQL (pool_size=20, max_overflow=10)")
 
     # Create session factory
     SessionLocal = sessionmaker(

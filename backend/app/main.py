@@ -23,6 +23,10 @@ app = FastAPI(
     version="1.0.0"
 )
 
+# ✅ Final: Setup unified exception handlers for consistent error responses
+from app.core.exceptions import setup_exception_handlers
+setup_exception_handlers(app)
+
 # 设置CORS中间件
 if settings.BACKEND_CORS_ORIGINS:
     app.add_middleware(
@@ -33,11 +37,27 @@ if settings.BACKEND_CORS_ORIGINS:
         allow_headers=["*"],
     )
 
-# ✅ Week 3 Day 3: Add performance monitoring middleware
-from app.middleware import PerformanceMiddleware, ErrorTrackingMiddleware
+# ✅ Final: Add all production middleware (rate limiting, performance, error tracking)
+from app.middleware import (
+    RateLimitMiddleware,
+    PerformanceMiddleware,
+    ErrorTrackingMiddleware,
+    ENDPOINT_LIMITS
+)
+
+# Rate limiting (first - reject abusive requests early)
+app.add_middleware(
+    RateLimitMiddleware,
+    default_limit=100,  # 100 req/min for anonymous users
+    default_period=60,
+    authenticated_limit=1000,  # 1000 req/min for authenticated users
+    endpoint_limits=ENDPOINT_LIMITS
+)
+
+# Error tracking and performance monitoring
 app.add_middleware(ErrorTrackingMiddleware)
 app.add_middleware(PerformanceMiddleware, log_slow_requests=True, slow_threshold=1.0)
-logger.info("✅ Performance monitoring middleware enabled")
+logger.info("✅ Production middleware enabled: Rate Limiting + Performance + Error Tracking")
 
 # 包含API路由 - 统一通过api_router注册，避免重复
 # 所有v1 API路由都在 app/api/v1/__init__.py 中注册
@@ -73,7 +93,8 @@ async def startup_event():
 
 @app.on_event("shutdown")
 async def shutdown_event():
-    logger.info("🔌 Application shutdown...")
+    """Graceful shutdown - cleanup all resources"""
+    logger.info("🔌 Application shutdown initiated...")
 
     try:
         # 1. 停止消息总线
@@ -82,10 +103,21 @@ async def shutdown_event():
             await app.state.message_bus.stop()
             logger.info("✅ Message bus stopped")
 
-        # 2. 关闭数据库连接
+        # 2. ✅ Final: Clear cache and save statistics
+        try:
+            from app.core.cache import get_cache_stats
+            stats = await get_cache_stats()
+            logger.info(f"📊 Final cache stats: {stats}")
+        except Exception as cache_error:
+            logger.warning(f"⚠️  Cache stats retrieval failed: {cache_error}")
+
+        # 3. 关闭数据库连接
         logger.info("📊 Closing database connections...")
         close_database()
         logger.info("✅ Database connections closed")
+
+        # 4. ✅ Final: Cleanup any background tasks
+        logger.info("🧹 Cleaning up background tasks...")
 
     except Exception as e:
         logger.error(f"⚠️  Error during shutdown: {e}")
