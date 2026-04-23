@@ -16,14 +16,41 @@ import logging
 # 文档处理库
 try:
     from docx import Document as DocxDocument
+except ImportError:
+    DocxDocument = None
+    logging.warning("python-docx not installed — DOCX unsupported")
+
+try:
     from openpyxl import load_workbook
+except ImportError:
+    load_workbook = None
+    logging.warning("openpyxl not installed — XLSX unsupported")
+
+try:
     from pptx import Presentation
+except ImportError:
+    Presentation = None
+    logging.warning("python-pptx not installed — PPTX unsupported")
+
+try:
     import PyPDF2
+except ImportError:
+    PyPDF2 = None
+    logging.warning("PyPDF2 not installed — PDF fallback unsupported")
+
+try:
     import pdfplumber
+except ImportError:
+    pdfplumber = None
+    logging.warning("pdfplumber not installed — PDF primary unsupported")
+
+try:
     from PIL import Image
-    # import easyocr  # OCR库，需要安装: pip install easyocr
-except ImportError as e:
-    logging.warning(f"某些文档处理库未安装: {e}")
+except ImportError:
+    Image = None
+    logging.warning("Pillow not installed — image processing unsupported")
+
+# import easyocr  # OCR库，需要安装: pip install easyocr
 
 from app.models.knowledge import DocumentType
 
@@ -140,6 +167,9 @@ class DocumentProcessor:
     def _process_pdf(self, file_path: str) -> Dict[str, Any]:
         """处理PDF文档"""
         try:
+            if pdfplumber is None:
+                return self._process_pdf_fallback(file_path)
+
             content = ""
             metadata = {}
             
@@ -169,6 +199,9 @@ class DocumentProcessor:
     
     def _process_pdf_fallback(self, file_path: str) -> Dict[str, Any]:
         """PDF处理降级方案"""
+        if PyPDF2 is None:
+            raise DocumentProcessorError("PyPDF2 not installed — PDF fallback unsupported")
+
         content = ""
         metadata = {}
         
@@ -199,6 +232,9 @@ class DocumentProcessor:
     
     def _process_docx(self, file_path: str) -> Dict[str, Any]:
         """处理DOCX文档"""
+        if DocxDocument is None:
+            raise DocumentProcessorError("python-docx not installed — DOCX unsupported")
+
         doc = DocxDocument(file_path)
         
         # 提取文本内容
@@ -257,6 +293,9 @@ class DocumentProcessor:
     
     def _process_xlsx(self, file_path: str) -> Dict[str, Any]:
         """处理XLSX文档"""
+        if load_workbook is None:
+            raise DocumentProcessorError("openpyxl not installed — XLSX unsupported")
+
         workbook = load_workbook(file_path, read_only=True, data_only=True)
         
         content = []
@@ -340,6 +379,9 @@ class DocumentProcessor:
     
     def _process_pptx(self, file_path: str) -> Dict[str, Any]:
         """处理PPTX文档"""
+        if Presentation is None:
+            raise DocumentProcessorError("python-pptx not installed — PPTX unsupported")
+
         prs = Presentation(file_path)
         
         content = []
@@ -502,6 +544,9 @@ class DocumentProcessor:
     def _process_image_ocr(self, file_path: str) -> Dict[str, Any]:
         """处理图片文档（OCR文字识别）"""
         try:
+            if Image is None:
+                raise DocumentProcessorError("Pillow not installed — image processing unsupported")
+
             # 延迟初始化OCR
             # if self._ocr_reader is None:
             #     self._ocr_reader = easyocr.Reader(['ch_sim', 'en'])  # 中英文识别
