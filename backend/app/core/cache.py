@@ -149,15 +149,27 @@ class MemoryCache(BaseCache[T]):
         self._lock = asyncio.Lock()
         self._clean_task = None
         self.stats = CacheStats()  # ✅ Week 3: Add statistics
-        self._start_cleanup_task()
-    
-    def _start_cleanup_task(self):
-        """启动清理任务"""
+
+    async def start_cleanup(self) -> None:
+        """在应用生命周期内启动过期缓存清理任务"""
+        if self._clean_task and not self._clean_task.done():
+            return
+
+        loop = asyncio.get_running_loop()
+        self._clean_task = loop.create_task(self._clean_expired_entries())
+
+    async def stop_cleanup(self) -> None:
+        """停止过期缓存清理任务"""
+        if not self._clean_task:
+            return
+
+        self._clean_task.cancel()
         try:
-            self._clean_task = asyncio.create_task(self._clean_expired_entries())
-        except RuntimeError:
-            # 如果没有运行中的事件循环，则跳过
+            await self._clean_task
+        except asyncio.CancelledError:
             pass
+        finally:
+            self._clean_task = None
     
     async def get(self, key: str) -> Optional[T]:
         """从缓存获取值 - Week 3: Track statistics"""
@@ -371,6 +383,14 @@ class HybridCache(BaseCache[T]):
             await self.redis_cache.clear()
         await self.memory_cache.clear()
 
+    async def start_cleanup(self) -> None:
+        """Start background cleanup for the in-memory fallback cache"""
+        await self.memory_cache.start_cleanup()
+
+    async def stop_cleanup(self) -> None:
+        """Stop background cleanup for the in-memory fallback cache"""
+        await self.memory_cache.stop_cleanup()
+
 
 # 单例缓存实例 - Week 3: Use hybrid cache for production
 memory_cache = MemoryCache()
@@ -438,6 +458,33 @@ async def invalidate_cache(prefix: str, *args, **kwargs):
 async def get_cache_stats() -> dict:
     """Get cache performance statistics"""
     return hybrid_cache.stats.get_stats()
+
+
+def _get_cleanup_caches() -> list[MemoryCache[Any]]:
+    """Return all in-process memory caches that need lifecycle management."""
+    caches: list[MemoryCache[Any]] = []
+    seen: set[int] = set()
+
+    for cache in (memory_cache, hybrid_cache.memory_cache):
+        cache_id = id(cache)
+        if cache_id in seen:
+            continue
+        seen.add(cache_id)
+        caches.append(cache)
+
+    return caches
+
+
+async def start_cache_cleanup() -> None:
+    """Start cleanup tasks for all in-process memory caches."""
+    for cache in _get_cleanup_caches():
+        await cache.start_cleanup()
+
+
+async def stop_cache_cleanup() -> None:
+    """Stop cleanup tasks for all in-process memory caches."""
+    for cache in _get_cleanup_caches():
+        await cache.stop_cleanup()
 
 
 async def clear_all_cache():

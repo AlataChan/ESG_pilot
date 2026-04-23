@@ -1,4 +1,6 @@
 import logging
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
 
@@ -13,14 +15,83 @@ logger = logging.getLogger(__name__)
 # 现在可以安全地导入其他模块
 from app.api.v1 import api_router
 from app.bus.message_bus import get_message_bus
+from app.core.cache import get_cache_stats, start_cache_cleanup, stop_cache_cleanup
 from app.db.session import create_tables, close_database
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    logger.info("🚀 Application startup...")
+    try:
+        # 1. 初始化数据库表（如果不存在）
+        logger.info("📊 Initializing database tables...")
+        try:
+            create_tables()
+            logger.info("✅ Database tables ready")
+        except Exception as db_error:
+            logger.warning(f"⚠️  Database initialization warning: {db_error}")
+            # Continue even if database fails (for development without DB)
+
+        # 2. 初始化并启动消息总线
+        logger.info("📨 Initializing message bus...")
+        message_bus = get_message_bus()
+        await message_bus.start()
+        app.state.message_bus = message_bus
+        logger.info("✅ Message bus started and ready")
+
+        # 3. 启动缓存清理任务
+        logger.info("🧹 Starting cache cleanup tasks...")
+        await start_cache_cleanup()
+        logger.info("✅ Cache cleanup tasks started")
+
+        logger.info("✅ Application startup complete!")
+    except Exception as e:
+        logger.exception(f"❌ Critical error during application startup: {e}")
+        raise
+
+    try:
+        yield
+    finally:
+        logger.info("🔌 Application shutdown initiated...")
+
+        try:
+            # 1. 停止缓存清理任务
+            logger.info("🧹 Stopping cache cleanup tasks...")
+            await stop_cache_cleanup()
+            logger.info("✅ Cache cleanup tasks stopped")
+        except Exception as cache_cleanup_error:
+            logger.warning(f"⚠️  Cache cleanup stop error: {cache_cleanup_error}")
+
+        try:
+            # 2. 停止消息总线
+            if hasattr(app.state, "message_bus") and app.state.message_bus:
+                logger.info("📨 Stopping message bus...")
+                await app.state.message_bus.stop()
+                logger.info("✅ Message bus stopped")
+        except Exception as message_bus_error:
+            logger.warning(f"⚠️  Message bus stop error: {message_bus_error}")
+
+        # 3. ✅ Final: Clear cache and save statistics
+        try:
+            stats = await get_cache_stats()
+            logger.info(f"📊 Final cache stats: {stats}")
+        except Exception as cache_error:
+            logger.warning(f"⚠️  Cache stats retrieval failed: {cache_error}")
+
+        # 4. 关闭数据库连接
+        logger.info("📊 Closing database connections...")
+        close_database()
+        logger.info("✅ Database connections closed")
+        logger.info("✅ Application shutdown complete")
+
 
 # 创建FastAPI应用实例
 app = FastAPI(
     title=settings.PROJECT_NAME,
     openapi_url=f"{settings.API_V1_STR}/openapi.json",
     description="由AI Agent驱动的ESG智能管理平台",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan,
 )
 
 # ✅ Final: Setup unified exception handlers for consistent error responses
@@ -63,66 +134,6 @@ logger.info("✅ Production middleware enabled: Rate Limiting + Performance + Er
 # 所有v1 API路由都在 app/api/v1/__init__.py 中注册
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
-
-# 定义启动和关闭事件
-@app.on_event("startup")
-async def startup_event():
-    logger.info("🚀 Application startup...")
-    try:
-        # 1. 初始化数据库表（如果不存在）
-        logger.info("📊 Initializing database tables...")
-        try:
-            create_tables()
-            logger.info("✅ Database tables ready")
-        except Exception as db_error:
-            logger.warning(f"⚠️  Database initialization warning: {db_error}")
-            # Continue even if database fails (for development without DB)
-
-        # 2. 初始化并启动消息总线
-        logger.info("📨 Initializing message bus...")
-        message_bus = get_message_bus()
-        await message_bus.start()  # ✅ CRITICAL FIX: Start the message bus!
-        app.state.message_bus = message_bus
-        logger.info("✅ Message bus started and ready")
-
-        logger.info("✅ Application startup complete!")
-
-    except Exception as e:
-        logger.exception(f"❌ Critical error during application startup: {e}")
-        raise
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    """Graceful shutdown - cleanup all resources"""
-    logger.info("🔌 Application shutdown initiated...")
-
-    try:
-        # 1. 停止消息总线
-        if hasattr(app.state, 'message_bus') and app.state.message_bus:
-            logger.info("📨 Stopping message bus...")
-            await app.state.message_bus.stop()
-            logger.info("✅ Message bus stopped")
-
-        # 2. ✅ Final: Clear cache and save statistics
-        try:
-            from app.core.cache import get_cache_stats
-            stats = await get_cache_stats()
-            logger.info(f"📊 Final cache stats: {stats}")
-        except Exception as cache_error:
-            logger.warning(f"⚠️  Cache stats retrieval failed: {cache_error}")
-
-        # 3. 关闭数据库连接
-        logger.info("📊 Closing database connections...")
-        close_database()
-        logger.info("✅ Database connections closed")
-
-        # 4. ✅ Final: Cleanup any background tasks
-        logger.info("🧹 Cleaning up background tasks...")
-
-    except Exception as e:
-        logger.error(f"⚠️  Error during shutdown: {e}")
-
-    logger.info("✅ Application shutdown complete")
 
 # 健康检查端点
 @app.get("/", tags=["Health Check"])
