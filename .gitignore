@@ -51,6 +51,8 @@ docs/
 # Test files and documentation
 test_*.py
 *test*.py
+!backend/tests/
+!backend/tests/*.py
 *测试*.md
 ESG_测试说明.md
 run_esg_test.sh
