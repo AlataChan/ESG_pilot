@@ -63,7 +63,13 @@ class LLMFactory:
         via OpenAI-compatible API.
         Configured entirely from env vars via settings.
         """
-        if not settings.EMBEDDING_API_KEY:
+        embedding_api_key = (
+            settings.EMBEDDING_API_KEY.get_secret_value().strip()
+            if settings.EMBEDDING_API_KEY
+            else ""
+        )
+
+        if not embedding_api_key:
             raise ValueError(
                 "EMBEDDING_API_KEY is not configured. "
                 "Set it in .env.local to a valid DashScope API key."
@@ -76,7 +82,7 @@ class LLMFactory:
 
         return OpenAIEmbeddings(
             model=settings.EMBEDDING_MODEL_NAME,
-            api_key=settings.EMBEDDING_API_KEY.get_secret_value(),
+            api_key=embedding_api_key,
             base_url=settings.EMBEDDING_BASE_URL,
             dimensions=settings.EMBEDDING_DIM,
         )
