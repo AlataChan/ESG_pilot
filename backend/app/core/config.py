@@ -1,27 +1,20 @@
 import os
 import logging
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import PostgresDsn, field_validator, ValidationInfo, Field, SecretStr, model_validator
+from pydantic import (
+    AliasChoices,
+    Field,
+    PostgresDsn,
+    SecretStr,
+    ValidationInfo,
+    field_validator,
+    model_validator,
+)
 from typing import Optional, Dict, Any
 
-# Determine the environment and load the appropriate .env file
-env_state = os.getenv("ENV_STATE", "development")
+# Load settings from the repo-root .env file.
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
-env_file_path = ".env"  # Default
-
-if env_state == "local":
-    env_file_path = os.path.join(project_root, ".env.local")
-    if not os.path.exists(env_file_path):
-        env_file_path = os.path.join(project_root, ".env")
-elif env_state == "test":
-    # For tests, we expect .env.test to be in the same directory as config.py
-    env_file_path = os.path.join(os.path.dirname(__file__), ".env.test")
-    if not os.path.exists(env_file_path):
-        # Fallback to the root .env if .env.test is not found in the core dir
-        env_file_path = ".env" 
-elif env_state == "docker":
-    # In a docker container, we expect the .env file at the root
-    env_file_path = "/app/.env"
+env_file_path = os.path.join(project_root, ".env")
 
 logger = logging.getLogger(__name__)
 DEFAULT_SECRET_KEY = "CHANGE_THIS_TO_A_RANDOM_SECRET_KEY_IN_PRODUCTION"
@@ -113,7 +106,10 @@ class Settings(BaseSettings):
     # --- Vector Store Settings (ChromaDB) ---
     CHROMA_DB_HOST: Optional[str] = None
     CHROMA_DB_PORT: Optional[int] = None
-    CHROMA_DB_PATH: str = "chroma_db_data"  # Default for local/test persistent storage
+    CHROMA_DB_PATH: str = Field(
+        default="chroma_db_data",
+        validation_alias=AliasChoices("CHROMA_DB_PATH", "CHROMA_PERSIST_DIRECTORY"),
+    )
     CHROMA_COLLECTION_NAME: str = "esg_collection"
 
     # --- JWT Authentication Settings ---
@@ -133,7 +129,8 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_secret_key(self) -> "Settings":
-        if self.SECRET_KEY == DEFAULT_SECRET_KEY:
+        secret_key = self.SECRET_KEY.strip()
+        if not secret_key or secret_key == DEFAULT_SECRET_KEY:
             if self.ENV_STATE in {"local", "test", "development"}:
                 logger.warning(
                     "Using default insecure SECRET_KEY in %s environment",

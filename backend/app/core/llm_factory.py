@@ -72,7 +72,7 @@ class LLMFactory:
         if not embedding_api_key:
             raise ValueError(
                 "EMBEDDING_API_KEY is not configured. "
-                "Set it in .env.local to a valid DashScope API key."
+                "Set it in .env to a valid DashScope API key."
             )
 
         logger.info(

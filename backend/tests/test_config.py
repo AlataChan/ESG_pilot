@@ -67,4 +67,7 @@ def test_unset_env_state_fails_closed(fresh_config, monkeypatch):
     monkeypatch.delenv("SECRET_KEY", raising=False)
 
     with pytest.raises(ValueError):
-        fresh_config.Settings(SECRET_KEY=fresh_config.DEFAULT_SECRET_KEY)
+        fresh_config.Settings(
+            _env_file=None,
+            SECRET_KEY=fresh_config.DEFAULT_SECRET_KEY,
+        )
