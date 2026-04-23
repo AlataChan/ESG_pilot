@@ -59,21 +59,26 @@ class LLMFactory:
     @staticmethod
     def create_embedding_model() -> OpenAIEmbeddings:
         """
-        创建Embedding模型实例
-        目前仍使用OpenAI的embedding模型
-        
-        Returns:
-            OpenAIEmbeddings实例
+        Create Embedding model instance using DashScope (Qwen3)
+        via OpenAI-compatible API.
+        Configured entirely from env vars via settings.
         """
-        if not settings.OPENAI_API_KEY:
-            logger.warning("OpenAI API密钥未配置，无法创建embedding模型")
-            raise ValueError("OpenAI API密钥未配置")
-        
-        logger.info(f"创建Embedding模型: {settings.EMBEDDING_MODEL_NAME}")
-        
+        if not settings.EMBEDDING_API_KEY:
+            raise ValueError(
+                "EMBEDDING_API_KEY is not configured. "
+                "Set it in .env.local to a valid DashScope API key."
+            )
+
+        logger.info(
+            f"Creating embedding model: {settings.EMBEDDING_MODEL_NAME} "
+            f"via {settings.EMBEDDING_BASE_URL}"
+        )
+
         return OpenAIEmbeddings(
             model=settings.EMBEDDING_MODEL_NAME,
-            openai_api_key=settings.OPENAI_API_KEY.get_secret_value()
+            api_key=settings.EMBEDDING_API_KEY.get_secret_value(),
+            base_url=settings.EMBEDDING_BASE_URL,
+            dimensions=settings.EMBEDDING_DIM,
         )
 
 # 全局LLM工厂实例

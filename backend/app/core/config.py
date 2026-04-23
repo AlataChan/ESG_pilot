@@ -98,10 +98,12 @@ class Settings(BaseSettings):
     DEEPSEEK_BASE_URL: str = "https://api.deepseek.com"
     DEEPSEEK_MODEL: str = "deepseek-reasoner"
     
-    # 保持OpenAI兼容性，用于embedding
-    OPENAI_API_KEY: Optional[SecretStr] = None
-    EMBEDDING_MODEL_NAME: str = "text-embedding-3-large"
-    EMBEDDING_DIM: int = 3072
+    # --- Embedding Settings (DashScope / Qwen3, OpenAI-compatible API) ---
+    # All values configurable via env vars. API key MUST be set in env; never hardcode.
+    EMBEDDING_API_KEY: Optional[SecretStr] = None
+    EMBEDDING_BASE_URL: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    EMBEDDING_MODEL_NAME: str = "text-embedding-v4"
+    EMBEDDING_DIM: int = 1024
 
     # --- Vector Store Settings (ChromaDB) ---
     CHROMA_DB_HOST: Optional[str] = None
