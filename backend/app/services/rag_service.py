@@ -12,7 +12,6 @@ from datetime import datetime
 import asyncio
 
 from app.vector_store.chroma_db import get_chroma_manager
-from app.services.knowledge_service import get_knowledge_service
 from app.services.document_processor import get_document_processor
 from app.core.config import settings
 from app.core.llm_factory import llm_factory
@@ -86,7 +85,6 @@ class RAGService:
     def __init__(self):
         """初始化RAG服务"""
         self.chroma_manager = None
-        self.knowledge_service = None
         self.document_processor = None
         
         # RAG配置参数
@@ -102,8 +100,6 @@ class RAGService:
         """异步初始化组件"""
         if not self.chroma_manager:
             self.chroma_manager = get_chroma_manager()
-        if not self.knowledge_service:
-            self.knowledge_service = get_knowledge_service()
         if not self.document_processor:
             self.document_processor = get_document_processor()
 

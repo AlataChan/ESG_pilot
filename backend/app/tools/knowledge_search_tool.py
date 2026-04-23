@@ -8,7 +8,6 @@ from typing import Dict, List, Any, Optional
 from abc import ABC, abstractmethod
 
 from app.vector_store.chroma_db import get_chroma_manager
-from app.services.knowledge_service import get_knowledge_service
 
 logger = logging.getLogger(__name__)
 
@@ -41,14 +40,11 @@ class KnowledgeSearchTool:
         输入应该是用户问题的核心关键词或短语。
         """
         self.chroma_manager = None
-        self.knowledge_service = None
         
     async def _ainit_components(self):
         """异步初始化组件"""
         if not self.chroma_manager:
             self.chroma_manager = get_chroma_manager()
-        if not self.knowledge_service:
-            self.knowledge_service = get_knowledge_service()
     
     async def search(self, query: str, n_results: int = 5,
                     document_types: Optional[List[str]] = None,

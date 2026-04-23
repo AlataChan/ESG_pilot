@@ -12,7 +12,6 @@ from datetime import datetime
 from dataclasses import dataclass, asdict
 import asyncio
 
-from app.services.knowledge_service import get_knowledge_service
 from app.vector_store.chroma_db import get_chroma_manager
 from app.core.config import settings
 from app.core.cache import cached  # ✅ Week 3: Add caching support
@@ -91,7 +90,6 @@ class InformationExtractionService:
     
     def __init__(self):
         """初始化信息提取服务 - ✅ Week 3: Pre-compile regex patterns"""
-        self.knowledge_service = None
         self.chroma_manager = None
 
         # 预定义的实体类型和模式
@@ -147,8 +145,6 @@ class InformationExtractionService:
     
     async def _init_components(self):
         """异步初始化组件"""
-        if not self.knowledge_service:
-            self.knowledge_service = get_knowledge_service()
         if not self.chroma_manager:
             self.chroma_manager = get_chroma_manager()
 
