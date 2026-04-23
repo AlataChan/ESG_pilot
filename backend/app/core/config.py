@@ -26,7 +26,7 @@ class Settings(BaseSettings):
     Application settings, loaded from environment variables and .env files.
     """
     # Environment state: 'docker', 'local', 'test'
-    ENV_STATE: str = "development"
+    ENV_STATE: str = "docker"
 
     # Core project settings
     PROJECT_NAME: str = "ESG-Copilot"
@@ -127,14 +127,15 @@ class Settings(BaseSettings):
     @model_validator(mode="after")
     def validate_secret_key(self) -> "Settings":
         if self.SECRET_KEY == DEFAULT_SECRET_KEY:
-            if self.ENV_STATE in {"docker", "production"}:
-                raise ValueError(
-                    "SECRET_KEY must be changed from the default value when ENV_STATE is 'docker' or 'production'"
-                )
             if self.ENV_STATE in {"local", "test", "development"}:
                 logger.warning(
                     "Using default insecure SECRET_KEY in %s environment",
                     self.ENV_STATE,
+                )
+            else:
+                raise ValueError(
+                    f"SECRET_KEY must be changed from the default value "
+                    f"when ENV_STATE is '{self.ENV_STATE}' (non-local environment)"
                 )
         return self
 
