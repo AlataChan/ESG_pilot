@@ -57,7 +57,7 @@ class ReportDB(Base):
         Index('ix_company_created', 'company_name', 'created_at'),
 
         # Query: user reports with date sorting
-        Index('ix_user_created', 'user_id', 'created_at'),
+        Index('ix_report_user_created', 'user_id', 'created_at'),
     )
 
     def __repr__(self):

@@ -22,6 +22,7 @@ requests==2.31.0
 python-magic==0.4.27
 # JWT Authentication
 python-jose[cryptography]==3.3.0
+bcrypt>=4.0.1,<5
 passlib[bcrypt]==1.7.4
 # Week 3: Monitoring
 psutil==5.9.6
