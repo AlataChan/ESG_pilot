@@ -8,7 +8,11 @@ from typing import Optional, Dict, Any
 env_state = os.getenv("ENV_STATE", "development")
 env_file_path = ".env"  # Default
 
-if env_state == "test":
+if env_state == "local":
+    env_file_path = ".env.local"
+    if not os.path.exists(env_file_path):
+        env_file_path = ".env"
+elif env_state == "test":
     # For tests, we expect .env.test to be in the same directory as config.py
     env_file_path = os.path.join(os.path.dirname(__file__), ".env.test")
     if not os.path.exists(env_file_path):
