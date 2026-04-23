@@ -1,7 +1,7 @@
 """
 Report-related Pydantic models for request/response validation and data transfer.
 """
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from typing import Optional, Dict, Any, List
 from datetime import datetime
 import uuid
@@ -30,8 +30,7 @@ class ReportInDB(ReportBase):
     created_at: datetime = Field(..., description="Timestamp of when the report was created.")
     updated_at: datetime = Field(..., description="Timestamp of the last update.")
     
-    class Config:
-        from_attributes = True #  for Pydantic V2, orm_mode = True for V1
+    model_config = ConfigDict(from_attributes=True)
 
 class ReportResponse(BaseModel):
     """The response model for a report, sent to the client."""

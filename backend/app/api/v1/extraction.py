@@ -30,7 +30,7 @@ class ExtractionRequest(BaseModel):
 
 class BatchExtractionRequest(BaseModel):
     """批量信息提取请求模型"""
-    document_ids: List[str] = Field(..., description="文档ID列表", max_items=10)
+    document_ids: List[str] = Field(..., description="文档ID列表", max_length=10)
     user_id: str = Field(..., description="用户ID")
     extraction_types: List[str] = Field(
         ["summary", "entities", "keywords"], 
