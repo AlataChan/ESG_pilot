@@ -22,3 +22,11 @@ operations such as `cursor.execute`, `conn.commit`, and `_get_connection()` insi
    (for example `aiosqlite`) with explicit compatibility coverage.
 3. Revisit remaining V1 callers after the P1 dead initialization cleanup removed the
    unused service wiring from RAG, extraction, and knowledge search tool paths.
+
+## ⚠️ Breaking: Embedding dimension changed
+
+Old OpenAI `text-embedding-3-large`: 3072 dim
+New DashScope `text-embedding-v4`: 1024 dim
+
+If reusing this project, delete `backend/chroma_db_data/` before first run after
+upgrade, or existing vectors will fail to match query embeddings.
