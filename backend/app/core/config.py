@@ -6,12 +6,13 @@ from typing import Optional, Dict, Any
 
 # Determine the environment and load the appropriate .env file
 env_state = os.getenv("ENV_STATE", "development")
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 env_file_path = ".env"  # Default
 
 if env_state == "local":
-    env_file_path = ".env.local"
+    env_file_path = os.path.join(project_root, ".env.local")
     if not os.path.exists(env_file_path):
-        env_file_path = ".env"
+        env_file_path = os.path.join(project_root, ".env")
 elif env_state == "test":
     # For tests, we expect .env.test to be in the same directory as config.py
     env_file_path = os.path.join(os.path.dirname(__file__), ".env.test")
