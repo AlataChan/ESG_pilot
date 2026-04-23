@@ -8,6 +8,7 @@ psycopg2-binary==2.9.9
 chromadb==0.4.24
 pydantic==2.7.4
 pydantic-settings==2.1.0
+email-validator>=2.0
 python-dotenv==1.0.0
 langchain-community==0.2.0
 langchain-core==0.2.38

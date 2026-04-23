@@ -9,6 +9,7 @@ import psutil
 from datetime import datetime
 from typing import Dict, Any, Optional
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.db import get_db
@@ -33,7 +34,7 @@ async def health_check(db: Session = Depends(get_db)):
     """
     try:
         # Check database connectivity
-        db.execute("SELECT 1")
+        db.execute(text("SELECT 1"))
 
         return create_response({
             "status": "healthy",
@@ -59,7 +60,7 @@ async def detailed_health_check(db: Session = Depends(get_db)):
 
     # Check database
     try:
-        db.execute("SELECT 1")
+        db.execute(text("SELECT 1"))
         health_status["components"]["database"] = {
             "status": "healthy",
             "type": "PostgreSQL" if "postgresql" in str(db.bind.url) else "SQLite"
