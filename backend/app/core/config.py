@@ -1,6 +1,7 @@
 import os
+import logging
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import PostgresDsn, field_validator, ValidationInfo, Field, computed_field, SecretStr
+from pydantic import PostgresDsn, field_validator, ValidationInfo, Field, SecretStr, model_validator
 from typing import Optional, Dict, Any
 
 # Determine the environment and load the appropriate .env file
@@ -17,12 +18,15 @@ elif env_state == "docker":
     # In a docker container, we expect the .env file at the root
     env_file_path = "/app/.env"
 
+logger = logging.getLogger(__name__)
+DEFAULT_SECRET_KEY = "CHANGE_THIS_TO_A_RANDOM_SECRET_KEY_IN_PRODUCTION"
+
 class Settings(BaseSettings):
     """
     Application settings, loaded from environment variables and .env files.
     """
     # Environment state: 'docker', 'local', 'test'
-    ENV_STATE: str = "docker"
+    ENV_STATE: str = "development"
 
     # Core project settings
     PROJECT_NAME: str = "ESG-Copilot"
@@ -108,7 +112,7 @@ class Settings(BaseSettings):
     # --- JWT Authentication Settings ---
     # ✅ PRODUCTION-READY: Secure JWT configuration
     SECRET_KEY: str = Field(
-        default="CHANGE_THIS_TO_A_RANDOM_SECRET_KEY_IN_PRODUCTION",
+        default=DEFAULT_SECRET_KEY,
         description="Secret key for JWT token signing - MUST be changed in production"
     )
     ALGORITHM: str = Field(
@@ -119,6 +123,20 @@ class Settings(BaseSettings):
         default=30,
         description="JWT token expiration time in minutes"
     )
+
+    @model_validator(mode="after")
+    def validate_secret_key(self) -> "Settings":
+        if self.SECRET_KEY == DEFAULT_SECRET_KEY:
+            if self.ENV_STATE in {"docker", "production"}:
+                raise ValueError(
+                    "SECRET_KEY must be changed from the default value when ENV_STATE is 'docker' or 'production'"
+                )
+            if self.ENV_STATE in {"local", "test", "development"}:
+                logger.warning(
+                    "Using default insecure SECRET_KEY in %s environment",
+                    self.ENV_STATE,
+                )
+        return self
 
     def build_connection_string(self) -> str:
         return str(
