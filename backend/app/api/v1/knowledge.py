@@ -15,7 +15,6 @@ from app.models.knowledge import (
     KnowledgeCategoryCreate, DocumentListQuery, DocumentListResponse,
     DocumentStatus, DocumentType, KnowledgeStats
 )
-from app.services.knowledge_service import get_knowledge_service
 from app.services.knowledge_service_v2 import get_knowledge_service_v2, KnowledgeServiceError
 from app.core.auth import get_current_user
 from app.db.session import get_db
@@ -232,7 +231,7 @@ async def get_document_preview(
     document_id: str,
     max_length: int = Query(500, ge=100, le=2000, description="预览最大字符数"),
     current_user: dict = Depends(get_current_user),
-    service = Depends(get_knowledge_service)
+    service = Depends(get_knowledge_service_v2)
 ):
     """获取文档预览内容"""
     try:
@@ -248,7 +247,7 @@ async def get_document_preview(
 async def process_document_content(
     document_id: str,
     current_user: dict = Depends(get_current_user),
-    service = Depends(get_knowledge_service)
+    service = Depends(get_knowledge_service_v2)
 ):
     """处理文档内容，提取文本和元数据"""
     try:
@@ -277,7 +276,7 @@ async def search_documents(
     limit: int = Query(20, ge=1, le=100, description="返回数量限制"),
     offset: int = Query(0, ge=0, description="偏移量"),
     current_user: dict = Depends(get_current_user),
-    service = Depends(get_knowledge_service)
+    service = Depends(get_knowledge_service_v2)
 ):
     """搜索文档"""
     try:
@@ -311,7 +310,7 @@ async def search_documents(
 
 @router.get("/supported-types")
 async def get_supported_document_types(
-    service = Depends(get_knowledge_service)
+    service = Depends(get_knowledge_service_v2)
 ):
     """获取支持的文档类型列表"""
     try:
@@ -405,7 +404,7 @@ async def get_knowledge_stats(
 async def suggest_document_category(
     document_id: str,
     current_user: dict = Depends(get_current_user),
-    service = Depends(get_knowledge_service)
+    service = Depends(get_knowledge_service_v2)
 ):
     """为文档建议合适的分类
 
@@ -465,7 +464,7 @@ async def health_check():
 # 测试用的辅助接口
 @router.get("/test/processor")
 async def test_document_processor(
-    service = Depends(get_knowledge_service)
+    service = Depends(get_knowledge_service_v2)
 ):
     """测试文档处理器功能"""
     try:
