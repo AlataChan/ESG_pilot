@@ -14,7 +14,8 @@ from datetime import datetime
 import json
 
 from langchain_core.messages import SystemMessage, HumanMessage
-from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+from langchain_core.embeddings import Embeddings
+from langchain_openai import ChatOpenAI
 from langchain_chroma import Chroma
 
 from app.core.config import settings
@@ -45,7 +46,7 @@ class CompanyProfileAgent(BaseAgent):
             
             # 延迟初始化资源
             self.llm: Optional[ChatOpenAI] = None
-            self.embeddings: Optional[OpenAIEmbeddings] = None
+            self.embeddings: Optional[Embeddings] = None
             self.vector_store: Optional[Chroma] = None
             self.retriever: Optional[Any] = None # as_retriever 的返回类型复杂，用Any
             
@@ -78,8 +79,8 @@ class CompanyProfileAgent(BaseAgent):
             )
         return self.llm
 
-    def _get_embeddings(self) -> OpenAIEmbeddings:
-        """延迟初始化并返回Embeddings实例 - 使用OpenAI embedding"""
+    def _get_embeddings(self) -> Embeddings:
+        """延迟初始化并返回Embeddings实例 - 使用DashScope embedding"""
         if self.embeddings is None:
             self.embeddings = llm_factory.create_embedding_model()
         return self.embeddings

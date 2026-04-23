@@ -1,8 +1,8 @@
 import chromadb
-from langchain_openai import OpenAIEmbeddings
 from typing import List, Dict, Any
 import logging
 from chromadb.api.types import EmbeddingFunction, Documents, Embeddings
+from langchain_core.embeddings import Embeddings as LangChainEmbeddings
 
 from app.core.config import settings
 from app.core.llm_factory import llm_factory
@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 # ChromaDB's new interface requires a specific signature for embedding functions.
 # We create an adapter class to bridge LangChain's embedding models with ChromaDB's expectations.
 class LangchainEmbeddingFunctionAdapter(EmbeddingFunction):
-    def __init__(self, langchain_embedding: OpenAIEmbeddings):
+    def __init__(self, langchain_embedding: LangChainEmbeddings):
         self._langchain_embedding = langchain_embedding
 
     def __call__(self, input: Documents) -> Embeddings:
