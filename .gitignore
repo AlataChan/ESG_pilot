@@ -52,7 +52,7 @@ docs/
 test_*.py
 *test*.py
 !backend/tests/
-!backend/tests/*.py
+!backend/tests/**
 *测试*.md
 ESG_测试说明.md
 run_esg_test.sh

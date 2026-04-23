@@ -8,7 +8,7 @@ Security utilities for password hashing and JWT token management
 - Secure random secret generation
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any
 import logging
 
@@ -79,15 +79,15 @@ def create_access_token(data: Dict[str, Any], expires_delta: Optional[timedelta]
 
     # Set expiration time
     if expires_delta:
-        expire = datetime.utcnow() + expires_delta
+        expire = datetime.now(timezone.utc) + expires_delta
     else:
         # Default: 30 minutes
-        expire = datetime.utcnow() + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+        expire = datetime.now(timezone.utc) + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
 
     # Add standard JWT claims
     to_encode.update({
         "exp": expire,  # Expiration time
-        "iat": datetime.utcnow(),  # Issued at time
+        "iat": datetime.now(timezone.utc),  # Issued at time
         "sub": str(data.get("user_id")),  # Subject (user ID)
     })
 

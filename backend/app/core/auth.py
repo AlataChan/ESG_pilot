@@ -12,7 +12,7 @@ User authentication and authorization
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Any, Optional
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -189,7 +189,7 @@ def update_last_login(db: Session, user: User) -> None:
         user: User object to update
     """
     try:
-        user.last_login = datetime.utcnow()
+        user.last_login = datetime.now(timezone.utc)
         db.commit()
         logger.debug(f"Updated last login for user: {user.username}")
     except Exception as e:

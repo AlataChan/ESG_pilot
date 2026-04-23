@@ -5,7 +5,7 @@ Service layer for handling business logic related to ESG reports.
 Now uses proper SQLAlchemy ORM instead of non-existent db_models.
 """
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 from typing import Optional
 from fastapi import Depends
@@ -98,7 +98,7 @@ class ReportService:
         if db_report:
             db_report.content = content
             db_report.status = "completed"
-            db_report.completed_at = datetime.utcnow()
+            db_report.completed_at = datetime.now(timezone.utc)
             self.db.commit()
             self.db.refresh(db_report)
         return db_report
