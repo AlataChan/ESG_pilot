@@ -24,11 +24,13 @@ __pycache__/
 *.pyo
 *.pyd
 .Python
+.venv/
 env/
 venv/
 *.egg-info/
 .pytest_cache/
 .mypy_cache/
+.ccb/
 
 # IDE
 .idea/
@@ -53,6 +55,8 @@ test_*.py
 *test*.py
 !backend/tests/
 !backend/tests/**
+backend/tests/**/__pycache__/
+backend/tests/**/*.pyc
 *测试*.md
 ESG_测试说明.md
 run_esg_test.sh
